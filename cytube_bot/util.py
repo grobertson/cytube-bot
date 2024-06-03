@@ -4,7 +4,7 @@ from html.parser import HTMLParser, unescape
 from hashlib import md5
 from base64 import b64encode
 from itertools import islice
-from collections import Sequence
+from collections.abc import Sequence
 
 import requests
 
