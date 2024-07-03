@@ -19,8 +19,7 @@ else:
         def task_done(self):
             logger.debug('task_done %s', self)
 
-        @asyncio.coroutine
-        def join(self):
+        async def join(self):
             logger.info('join %s', self)
 
 try:
@@ -84,7 +83,7 @@ class MessageParser(HTMLParser):
                     self.message += ' %s ' % value
 
     def handle_endtag(self, tag):
-        while len(self.tags):
+        while self.tags:
             tag_, end = self.tags.pop()
             self.message += end
             if tag_ == tag:
