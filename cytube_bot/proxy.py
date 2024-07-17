@@ -23,7 +23,6 @@ except ImportError:
 
 from .error import ProxyConfigError
 
-
 logger = logging.getLogger('socks.getaddrinfo')
 _orig_getaddrinfo = socket.getaddrinfo
 
@@ -33,12 +32,12 @@ class Socket(socksocket):
 
     def __init__(self,
                  family=socket.AddressFamily.AF_INET,
-                 type=socket.SocketType.SOCK_STREAM,
+                 type=socket.SOCK_STREAM,
                  proto=0,
                  fileno=None):
-        if type not in (socket.SocketType.SOCK_STREAM,
-                        socket.SocketType.SOCK_DGRAM):
-            type = socket.SocketType.SOCK_STREAM
+        if type not in (socket.SOCK_STREAM,
+                        socket.SOCK_DGRAM):
+            type = socket.SOCK_STREAM
         super().__init__(family, type, proto, fileno)
 
     def set_proxy_for_address(self, addr):
