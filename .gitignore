@@ -1,16 +1,37 @@
-/env
-/build
-/dist
-/*.egg-info
-/docsrc/_build
-/docsrc/source
-/*.json
-/*.db*
-/websockets_*
-__pycache__
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+*.egg-info
 .pytest_cache
 .coverage
-*.pyc
-*.bak
+
+# Build artifacts
+/build
+/dist
+
+# Config files with sensitive data
+bots/**/config.json
+!bots/**/config.json.example
+
+# Database and log files
+*.db
+*.db-journal
 *.log
-.vscode
+
+# IDE
+.vscode/
+.idea/
+
+# Old structure (archived)
+/_old/
+
+# Development
+.DS_Store
+*.bak
+*.swp
+*~
