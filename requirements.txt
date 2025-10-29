@@ -1,0 +1,14 @@
+# Core dependencies for CyTube bot library
+websockets>=12.0
+requests>=2.32.3
+
+# Optional dependencies
+PySocks>=1.7.1  # For proxy support
+
+# Bot-specific dependencies
+markovify>=0.9.4  # For markov bot
+
+# Development dependencies (optional)
+pytest>=8.2.2
+pytest-mock>=3.14.0
+coverage>=7.5.4
