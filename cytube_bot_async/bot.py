@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import re
 import json
 import logging
@@ -37,8 +39,6 @@ class Bot:
         Channel.
     user : `cytube_bot.user.User`
         Bot user.
-    loop : `asyncio.events.AbstractEventLoop`
-        Event loop.
     server : `None` or `str`
         socket.io server URL.
     socket : `None` or `cytube_bot.socket_io.SocketIO`
@@ -65,7 +65,6 @@ class Bot:
     def __init__(self, domain,
                  channel, user=None,
                  restart_delay=5,
-                 loop=None,
                  response_timeout=0.1,
                  get=default_get,
                  socket_io=SocketIO.connect):
@@ -81,8 +80,6 @@ class Bot:
         restart_delay : `None` or `float`, optional
             Delay in seconds before reconnection.
             `None` or < 0 - do not reconnect.
-        loop : `asyncio.events.AbstractEventLoop`, optional
-            Event loop.
         response_timeout : `float`, optional
             socket.io event response timeout in seconds.
         get : `function` (url, loop), optional
@@ -97,7 +94,10 @@ class Bot:
         self.domain = domain
         self.channel = Channel(*to_sequence(channel))
         self.user = User(*to_sequence(user))
-        self.loop = loop or asyncio.get_event_loop()
+        try:
+            self.loop = asyncio.get_running_loop()
+        except:
+            self.loop = asyncio.new_event_loop()
         self.server = None
         self.socket = None
         self.handlers = collections.defaultdict(list)
@@ -231,8 +231,7 @@ class Bot:
         self.channel.playlist.locked = data
         self.logger.info('playlist locked %s', data)
 
-    @asyncio.coroutine
-    def get_socket_config(self):
+    async def get_socket_config(self):
         """Get server URL.
 
         Raises
@@ -248,7 +247,7 @@ class Bot:
             url = 'https://' + url
         self.logger.info('get_socket_config %s', url)
         try:
-            conf = yield from self.get(url, loop=self.loop)
+            conf = await self.get(url, loop=self.loop)
         except (CytubeError, asyncio.CancelledError):
             raise
         except Exception as ex:
@@ -275,8 +274,7 @@ class Bot:
         data['domain'] = server
         self.server = self.SOCKET_IO_URL % data
 
-    @asyncio.coroutine
-    def disconnect(self):
+    async def disconnect(self):
         """Disconnect.
         """
         self.logger.info('disconnect %s', self.server)
@@ -284,7 +282,7 @@ class Bot:
             self.logger.info('already disconnected')
             return
         try:
-            yield from self.socket.close()
+            await self.socket.close()
         except Exception as ex:
             self.logger.error('socket.close(): %s: %r', self.server, ex)
             raise
@@ -292,22 +290,20 @@ class Bot:
             self.socket = None
             self.user.rank = -1
 
-    @asyncio.coroutine
-    def connect(self):
+    async def connect(self):
         """Get server URL and connect.
 
         Raises
         ------
         `cytube_bot.error.SocketIOError`
         """
-        yield from self.disconnect()
+        await self.disconnect()
         if self.server is None:
-            yield from self.get_socket_config()
+            await self.get_socket_config()
         self.logger.info('connect %s', self.server)
-        self.socket = yield from self.socket_io(self.server, loop=self.loop)
+        self.socket = await self.socket_io(self.server, loop=self.loop)
 
-    @asyncio.coroutine
-    def login(self):
+    async def login(self):
         """Connect, join channel, log in.
 
         Raises
@@ -315,10 +311,10 @@ class Bot:
         `cytube_bot.error.LoginError`
         `cytube_bot.error.SocketIOError`
         """
-        yield from self.connect()
+        await self.connect()
 
         self.logger.info('join channel %s', self.channel)
-        res = yield from self.socket.emit(
+        res = await self.socket.emit(
             'joinChannel',
             {
                 'name': self.channel.name,
@@ -337,7 +333,7 @@ class Bot:
         else:
             while True:
                 self.logger.info('login %s', self.user)
-                res = yield from self.socket.emit(
+                res = await self.socket.emit(
                     'login',
                     {
                         'name': self.user.name,
@@ -359,15 +355,14 @@ class Bot:
                     try:
                         delay = max(int(match.group(1)), 1)
                         self.logger.warning('sleep(%d)', delay)
-                        yield from asyncio.sleep(delay)
+                        await asyncio.sleep(delay)
                     except ValueError:
                         raise LoginError(err)
                 else:
                     raise LoginError(err)
-        yield from self.trigger('login', self)
+        await self.trigger('login', self)
 
-    @asyncio.coroutine
-    def run(self):
+    async def run(self):
         """Main loop.
         """
         try:
@@ -375,20 +370,20 @@ class Bot:
                 try:
                     if self.socket is None:
                         self.logger.info('login')
-                        yield from self.login()
-                    ev, data = yield from self.socket.recv()
-                    yield from self.trigger(ev, data)
+                        await self.login()
+                    ev, data = await self.socket.recv()
+                    await self.trigger(ev, data)
                 except SocketIOError as ex:
                     self.logger.error('network error: %r', ex)
-                    yield from self.disconnect()
+                    await self.disconnect()
                     if self.restart_delay is None or self.restart_delay < 0:
                         break
                     self.logger.error('restarting')
-                    yield from asyncio.sleep(self.restart_delay)
+                    await asyncio.sleep(self.restart_delay)
         except asyncio.CancelledError:
             self.logger.info('cancelled')
         finally:
-            yield from self.disconnect()
+            await self.disconnect()
 
     def on(self, event, *handlers):
         """Add event handlers.
@@ -431,8 +426,7 @@ class Bot:
                 )
         return self
 
-    @asyncio.coroutine
-    def trigger(self, event, data):
+    async def trigger(self, event, data):
         """Trigger an event.
 
         Parameters
@@ -452,24 +446,23 @@ class Bot:
         try:
             for handler in self.handlers[event]:
                 if asyncio.iscoroutinefunction(handler):
-                    stop = yield from handler(event, data)
+                    stop = await handler(event, data)
                 else:
                     stop = handler(event, data)
                 if stop:
                     break
         except (asyncio.CancelledError, LoginError, Kicked):
             raise
-        except Exception as ex:
+        except Exception as ex: # pylint: disable=broad-except
             self.logger.error('trigger %s %s: %r', event, data, ex)
             if event != 'error':
-                yield from self.trigger('error', {
+                await self.trigger('error', {
                     'event': event,
                     'data': data,
                     'error': ex
                 })
 
-    @asyncio.coroutine
-    def chat(self, msg, meta=None):
+    async def chat(self, msg, meta=None):
         """Send a chat message.
 
         Parameters
@@ -501,7 +494,7 @@ class Bot:
         if self.user.muted or self.user.smuted:
             raise ChannelPermissionError('muted')
 
-        res = yield from self.socket.emit(
+        res = await self.socket.emit(
             'chatMsg',
             {'msg': msg, 'meta': meta if meta else {}},
             match_chat_response,
@@ -517,8 +510,7 @@ class Bot:
             #    raise ChannelPermissionError('muted')
         return res[1]
 
-    @asyncio.coroutine
-    def pm(self, to, msg, meta=None):
+    async def pm(self, to, msg, meta=None):
         """Send a private chat message.
 
         Parameters
@@ -552,7 +544,7 @@ class Bot:
         if self.user.muted or self.user.smuted:
             raise ChannelPermissionError('muted')
 
-        res = yield from self.socket.emit(
+        res = await self.socket.emit(
             'pm',
             {'msg': msg, 'to': to, 'meta': meta if meta else {}},
             match_pm_response,
@@ -566,8 +558,7 @@ class Bot:
             raise ChannelError(res[1].get('msg', '<no message>'))
         return res[1]
 
-    @asyncio.coroutine
-    def set_afk(self, value=True):
+    async def set_afk(self, value=True):
         """Set bot AFK.
 
         Parameters
@@ -579,10 +570,9 @@ class Bot:
         cytube_bot.error.ChannelPermissionError
         """
         if self.user.afk != value:
-            yield from self.socket.emit('chatMsg', {'msg': '/afk'})
+            await self.socket.emit('chatMsg', {'msg': '/afk'})
 
-    @asyncio.coroutine
-    def clear_chat(self):
+    async def clear_chat(self):
         """Clear chat.
 
         Raises
@@ -590,10 +580,9 @@ class Bot:
         cytube_bot.error.ChannelPermissionError
         """
         self.channel.check_permission('chatclear', self.user)
-        yield from self.socket.emit('chatMsg', {'msg': '/clear'})
+        await self.socket.emit('chatMsg', {'msg': '/clear'})
 
-    @asyncio.coroutine
-    def kick(self, user, reason=''):
+    async def kick(self, user, reason=''):
         """Kick a user.
 
         Parameters
@@ -621,7 +610,7 @@ class Bot:
             raise ChannelPermissionError(
                 'You do not have permission to kick ' + user.name
             )
-        res = yield from self.socket.emit(
+        res = await self.socket.emit(
             'chatMsg',
             {
                 'msg': '/kick %s %s' % (user.name, reason),
@@ -635,8 +624,7 @@ class Bot:
         if res[0] == 'errorMsg':
             raise ChannelPermissionError(res[1].get('msg', '<no message>'))
 
-    @asyncio.coroutine
-    def add_media(self, link, append=True, temp=True):
+    async def add_media(self, link, append=True, temp=True):
         """Add media link to playlist.
 
         Parameters
@@ -684,7 +672,7 @@ class Bot:
         if not isinstance(link, MediaLink):
             link = MediaLink.from_url(link)
 
-        res = yield from self.socket.emit(
+        res = await self.socket.emit(
             'queue',
             {
                 'type': link.type,
@@ -703,8 +691,7 @@ class Bot:
             raise ChannelError(res[1].get('msg', '<no message>'))
         return res[1]
 
-    @asyncio.coroutine
-    def remove_media(self, item):
+    async def remove_media(self, item):
         """Remove playlist item.
 
         Parameters
@@ -730,7 +717,7 @@ class Bot:
         self.channel.check_permission(action, self.user)
         if not isinstance(item, PlaylistItem):
             item = self.channel.playlist.get(item)
-        res = yield from self.socket.emit(
+        res = await self.socket.emit(
             'delete',
             item.uid,
             match_remove_media_response,
@@ -739,8 +726,7 @@ class Bot:
         if res is None:
             raise ChannelError('remove media response timeout')
 
-    @asyncio.coroutine
-    def move_media(self, item, after):
+    async def move_media(self, item, after):
         """Move a playlist item.
 
         Parameters
@@ -773,7 +759,7 @@ class Bot:
         if not isinstance(after, PlaylistItem):
             after = self.channel.playlist.get(after)
 
-        res = yield from self.socket.emit(
+        res = await self.socket.emit(
             'moveMedia',
             {
                 'from': item.uid,
@@ -785,8 +771,7 @@ class Bot:
         if res is None:
             raise ChannelError('move media response timeout')
 
-    @asyncio.coroutine
-    def set_current_media(self, item):
+    async def set_current_media(self, item):
         """Set current playlist item.
 
         Parameters
@@ -811,7 +796,7 @@ class Bot:
         self.channel.check_permission(action, self.user)
         if not isinstance(item, PlaylistItem):
             item = self.channel.playlist.get(item)
-        res = yield from self.socket.emit(
+        res = await self.socket.emit(
             'jumpTo',
             item.uid,
             match_set_current_response,
@@ -820,8 +805,7 @@ class Bot:
         if res is None:
             raise ChannelError('set current response timeout')
 
-    @asyncio.coroutine
-    def set_leader(self, user):
+    async def set_leader(self, user):
         """Set leader.
 
         Parameters
@@ -845,7 +829,7 @@ class Bot:
         self.channel.check_permission('leaderctl', self.user)
         if user is not None and not isinstance(user, User):
             user = self.channel.userlist.get(user)
-        res = yield from self.socket.emit(
+        res = await self.socket.emit(
             'assignLeader',
             {'name': user.name if user is not None else ''},
             match_set_leader_response,
@@ -854,13 +838,11 @@ class Bot:
         if res is None:
             raise ChannelError('set leader response timeout')
 
-    @asyncio.coroutine
-    def remove_leader(self):
+    async def remove_leader(self):
         """Remove leader."""
-        yield from self.set_leader(None)
+        await self.set_leader(None)
 
-    @asyncio.coroutine
-    def pause(self):
+    async def pause(self):
         """Pause current media.
 
         Raises
@@ -873,7 +855,7 @@ class Bot:
         if self.channel.playlist.current is None:
             return
 
-        yield from self.socket.emit('mediaUpdate', {
+        await self.socket.emit('mediaUpdate', {
             'currentTime': self.channel.playlist.current_time,
             'paused': True,
             'id': self.channel.playlist.current.link.id,

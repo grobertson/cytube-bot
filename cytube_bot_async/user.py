@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 from .util import uncloak_ip
-
 
 class User:
     """CyTube user.

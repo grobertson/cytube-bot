@@ -3,8 +3,8 @@
 import sys
 import asyncio
 
-from cytube_bot import Bot, MessageParser
-from cytube_bot.error import CytubeError, SocketIOError
+from cytube_bot_async import Bot, MessageParser
+from cytube_bot_async.error import CytubeError, SocketIOError
 
 from examples.shell import Shell
 from examples.config import get_config
@@ -17,16 +17,15 @@ class EchoBot(Bot):
         self.on('chatMsg', self.echo)
         self.on('pm', self.echo)
 
-    @asyncio.coroutine
-    def echo(self, event, data):
+    async def echo(self, event, data):
         username = data['username']
         if username == self.user.name or self.user.rank < 0:
             return
         msg = self.msg_parser.parse(data['msg'])
         if event == 'pm':
-            yield from self.pm(data['username'], msg)
+            await self.pm(data['username'], msg)
         elif msg.startswith(self.user.name):
-            yield from self.chat(msg.replace(self.user.name, username, 1))
+            await self.chat(msg.replace(self.user.name, username, 1))
 
 
 def main():
@@ -37,7 +36,7 @@ def main():
     shell = Shell(conf.get('shell', None), bot, loop=loop)
 
     try:
-        task = loop.create_task(bot.run())
+        task = yield loop.create_task(bot.run())
         if shell.task is not None:
             task_ = asyncio.gather(task, shell.task)
         else:

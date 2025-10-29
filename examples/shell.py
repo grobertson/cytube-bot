@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-
+# -*- coding: utf-8 -*-
+"""A repl shell for the cytube bot"""
 import asyncio
 import logging
-
+from cytube_bot_async import MediaLink, MessageParser # noqa: F401 W0611
 
 class Shell:
+    '''A Repl shell for the bot. A simple shell that allows interacting directly with the bot.'''
     logger = logging.getLogger(__name__)
 
     def __init__(self, addr, bot, loop=None):
@@ -49,8 +51,7 @@ class Shell:
     async def handle_connection(self, reader, writer):
         ''' Async function to handle a connection '''
         try:
-            from cytube_bot import MediaLink, MessageParser
-            bot = self.bot
+            bot = self.bot # pylint: disable=unused-variable
 
             cmd = ''
             res = None
@@ -75,22 +76,25 @@ class Shell:
                     break
 
                 try:
-                    res = eval(cmd)
+                    res = eval(cmd) # pylint: disable=eval-used
                     if asyncio.iscoroutine(res):
                         res = await res
-                except asyncio.CancelledError as ex:
+                except (asyncio.CancelledError) as ex:
                     raise ex
-                except Exception as ex:
-                    res = ex
+                except (SyntaxError, NameError) as ex:
+                    raise ex
+                except (Exception) as ex:
+                    raise ex
                 finally:
                     cmd = ''
 
-                await self.write(writer, '%r\n' % res)
+                await self.write(writer, f'{res}\n')
         except IOError as ex:
-            self.logger.error('connection error: %r', ex)
+            self.logger.error('connection error: %e', ex)
         finally:
             writer.close()
             try:
                 await writer.wait_closed()
             except AttributeError:
                 pass
+            self.logger.info('closed shell connection')

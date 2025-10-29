@@ -6,12 +6,12 @@ from setuptools import setup, find_packages
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 try:
-    with open(os.path.join(BASE_DIR, 'README.rst')) as fp:
+    with open(os.path.join(BASE_DIR, 'README.md')) as fp:
         README = fp.read()
 except IOError:
     README = ''
 
-setup(name='cytube-bot',
+setup(name='cytube-bot-async',
       version='0.2.1',
       description='AsyncIO CyTube bot',
       long_description=README,
@@ -26,7 +26,7 @@ setup(name='cytube-bot',
           'Topic :: Software Development :: Libraries :: Python Modules'
       ],
       keywords='cytube bot asyncio',
-      url='https://github.com/dead-beef/cytube-bot',
+      url='https://github.com/grobertson/cytube-bot',
       author='dead-beef',
       license='MIT',
       packages=find_packages(include=('cytube_bot*',)),

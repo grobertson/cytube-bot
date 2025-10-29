@@ -1,10 +1,12 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import sys
 import json
 import logging
 
-from cytube_bot import SocketIO, set_proxy
-
-
+from cytube_bot_async import SocketIO, set_proxy
+''' Slight hack to import from the parent directory
+#sys.path.append('..')'''
 def configure_logger(logger,
                      log_file=None,
                      log_format=None,

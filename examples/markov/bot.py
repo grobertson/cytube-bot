@@ -6,11 +6,10 @@ import logging
 import asyncio
 from time import localtime, strftime
 
-from markovchain import SqliteStorage
-from markovchain.text import MarkovText, ReplyMode
+import markovify
 
-from cytube_bot import Bot, MessageParser
-from cytube_bot.error import CytubeError, SocketIOError
+from cytube_bot_async import Bot, MessageParser
+from cytube_bot_async.error import CytubeError, SocketIOError
 
 from examples.shell import Shell
 from examples.config import get_config, configure_logger
@@ -31,14 +30,16 @@ class MarkovBot(Bot):
 
     LINK = re.compile(r'\bhttps?://\S+', re.I)
 
-    def __init__(self, markov, chat_logger, media_logger,
+    def __init__(self, markov_file, chat_logger, media_logger,
                  *args, order=None, learn=False, trigger=None, **kwargs):
         super().__init__(*args, **kwargs)
         name = re.escape(self.user.name)
         self.trigger_expr = re.compile(trigger or name, re.I)
         self.user_name_expr = re.compile(r'\b%s(:|\b)' % name, re.I)
-        self.markov = markov
-        self.markov_order = order
+        self.markov_file = markov_file
+        self.markov_text = ""  # Store original text
+        self.markov = self._load_markov()
+        self.markov_order = order or 2
         self.learn_enabled = learn
         self.max_length = 200
         self.chat_parser = MessageParser()
@@ -62,6 +63,27 @@ class MarkovBot(Bot):
             self.learn
         )
         self.on('setCurrent', self.log_media)
+
+    def _load_markov(self):
+        """Load markov model from file if it exists."""
+        try:
+            with open(self.markov_file, 'r', encoding='utf-8') as f:
+                text = f.read().strip()
+                if text:
+                    self.markov_text = text
+                    return markovify.Text(text, state_size=self.markov_order)
+        except (FileNotFoundError, IOError):
+            pass
+        return None
+
+    def _save_markov(self):
+        """Save markov model text to file."""
+        if self.markov_text:
+            try:
+                with open(self.markov_file, 'w', encoding='utf-8') as f:
+                    f.write(self.markov_text)
+            except IOError as e:
+                self.logger.error("Failed to save markov file: %s", e)
 
     def normalize(self, msg):
         msg = self.user_name_expr.sub('', msg)
@@ -104,43 +126,46 @@ class MarkovBot(Bot):
             return True
         return False
 
-    @asyncio.coroutine
-    def _reply(self, ev, username, msg):
+    async def _reply(self, ev, username, msg):
         if ev == 'pm':
-            yield from self.pm(username, msg)
+            await self.pm(username, msg)
         else:
-            yield from self.chat('%s: %s' % (username, msg))
+            await self.chat('%s: %s' % (username, msg))
 
-    @asyncio.coroutine
-    def reply(self, ev, data):
+    async def reply(self, ev, data):
         msg = data['msg']
         if ev != 'pm' and not self.trigger_expr.search(msg):
             return
         msg = data['normalized_msg']
-        #if not msg:
-        #    self.logger.info('empty message "%s"', data['msg'])
-        #    return
         self.logger.info('reply %r %s', msg, data)
-        msg = self.markov(
-            max_length=self.max_length,
-            state_size=self.markov_order,
-            reply_to=msg,
-            reply_mode=ReplyMode.REPLY
-        )
-        yield from self._reply(ev, data['username'], msg)
+        
+        if self.markov:
+            generated = self.markov.make_sentence(max_overlap_ratio=0.7, tries=100)
+            if generated:
+                msg = generated[:self.max_length]
+            else:
+                msg = "I don't have enough data to generate a response."
+        else:
+            msg = "I need to learn some text first."
+            
+        await self._reply(ev, data['username'], msg)
 
-    @asyncio.coroutine
-    def learn(self, _, data):
+    async def learn(self, _, data):
         if not self.learn_enabled:
             return
         msg = data['normalized_msg']
         if msg:
             self.logger.info('learn %s', msg)
-            self.markov.data(msg)
-            self.markov.save()
+            # Combine with existing text and retrain
+            if self.markov_text:
+                combined_text = self.markov_text + "\n" + msg
+            else:
+                combined_text = msg
+            self.markov_text = combined_text
+            self.markov = markovify.Text(combined_text, state_size=self.markov_order)
+            self._save_markov()
 
-    @asyncio.coroutine
-    def command(self, _, data):
+    async def command(self, _, data):
         msg = data['msg'].strip()
         if not msg.startswith('!'):
             return
@@ -158,48 +183,45 @@ class MarkovBot(Bot):
         try:
             handler = getattr(self, cmd)
         except AttributeError:
-            yield from self.chat(
+            await self.chat(
                 '%s: invalid command "%s"'
                 % (data['username'], data['cmd'])
             )
             return True
 
         if asyncio.iscoroutinefunction(handler):
-            yield from handler(data)
+            await handler(data)
         else:
             handler(data)
 
         return True
 
-    @asyncio.coroutine
-    def cmd_echo(self, data):
+    async def cmd_echo(self, data):
         msg = data['msg']
         if not msg:
             msg = '%s: usage: !echo <text>' % data['username']
-        yield from self.chat(msg)
+        await self.chat(msg)
 
-    @asyncio.coroutine
-    def cmd_setorder(self, data):
+    async def cmd_setorder(self, data):
         msg = data['msg']
         if not msg:
             msg = '%s: usage: !setorder <order>' % data['username']
         try:
             order = int(msg)
-            if order not in self.markov.parser.state_sizes:
-                raise ValueError(
-                    'invalid order: %s: not in %s'
-                    % (order, self.markov.parser.state_sizes)
-                )
+            if order < 1 or order > 5:
+                raise ValueError('order must be between 1 and 5')
             msg = '%s: order: %s -> %s' % (
                 data['username'], self.markov_order, order
             )
             self.markov_order = order
+            # Retrain model with new order if we have text
+            if self.markov_text:
+                self.markov = markovify.Text(self.markov_text, state_size=self.markov_order)
         except ValueError as ex:
             msg = '%s: %r' % (data['username'], ex)
-        yield from self.chat(msg)
+        await self.chat(msg)
 
-    @asyncio.coroutine
-    def cmd_setlearn(self, data):
+    async def cmd_setlearn(self, data):
         msg = data['msg'].lower()
         if msg in ('true', 'false'):
             learn = msg == 'true'
@@ -209,10 +231,9 @@ class MarkovBot(Bot):
             self.learn_enabled = learn
         else:
             msg = '%s: usage: !setlearn <true|false>' % data['username']
-        yield from self.chat(msg)
+        await self.chat(msg)
 
-    @asyncio.coroutine
-    def cmd_settrigger(self, data):
+    async def cmd_settrigger(self, data):
         msg = data['msg']
         if not msg:
             msg = '%s: usage: !settrigger <regexp>' % data['username']
@@ -227,49 +248,47 @@ class MarkovBot(Bot):
                 self.trigger_expr = trigger
             except re.error as ex:
                 msg = '%s: %r' % (data['username'], ex)
-        yield from self.chat(msg)
+        await self.chat(msg)
 
-    @asyncio.coroutine
-    def cmd_settings(self, data):
+    async def cmd_settings(self, data):
         msg = '%s: order=%s learn=%s trigger=%s' % (
             data['username'],
             self.markov_order,
             self.learn_enabled,
             self.trigger_expr
         )
-        yield from self.chat(msg)
+        await self.chat(msg)
 
-    @asyncio.coroutine
-    def cmd_help(self, _):
+    async def cmd_help(self, _):
         for msg in self.HELP:
-            yield from self.chat(msg)
-            yield from asyncio.sleep(0.2)
+            await self.chat(msg)
+            await asyncio.sleep(0.2)
 
-    @asyncio.coroutine
-    def _cmd_markov(self, data, reply_mode):
+    async def _cmd_markov(self, data):
         msg = data['msg']
-        if not msg:
-            msg = self.markov(
-                max_length=self.max_length,
-                state_size=self.markov_order,
-                reply_mode=reply_mode
-            )
+        if self.markov:
+            if msg:
+                # Try to generate sentence starting with the given text
+                generated = self.markov.make_sentence_with_start(msg, strict=False, tries=100)
+                if not generated:
+                    generated = self.markov.make_sentence(tries=100)
+            else:
+                generated = self.markov.make_sentence(tries=100)
+            
+            if generated:
+                msg = generated[:self.max_length]
+            else:
+                msg = "I couldn't generate a response."
         else:
-            msg = self.markov(
-                max_length=self.max_length,
-                state_size=self.markov_order,
-                reply_to=msg,
-                reply_mode=reply_mode
-            )
-        yield from self.chat('%s: %s' % (data['username'], msg))
+            msg = "I need to learn some text first."
+            
+        await self.chat('%s: %s' % (data['username'], msg))
 
-    @asyncio.coroutine
-    def cmd_markov(self, data):
-        yield from self._cmd_markov(data, ReplyMode.END)
+    async def cmd_markov(self, data):
+        await self._cmd_markov(data)
 
-    @asyncio.coroutine
-    def cmd_rmarkov(self, data):
-        yield from self._cmd_markov(data, ReplyMode.START)
+    async def cmd_rmarkov(self, data):
+        await self._cmd_markov(data)
 
 
 def main():
@@ -289,9 +308,9 @@ def main():
         log_format='[%(asctime).19s] %(message)s',
         log_level=logging.INFO
     )
-    markov = MarkovText.from_file(conf['markov'], storage=SqliteStorage)
+    
     bot = MarkovBot(
-        markov, chat_logger, media_logger,
+        conf['markov'], chat_logger, media_logger,
         order=conf.get('order', None),
         learn=conf.get('learn', False),
         trigger=conf.get('trigger', None),
@@ -317,7 +336,7 @@ def main():
         loop.run_until_complete(task)
         if shell.task is not None:
             loop.run_until_complete(shell.task)
-        markov.save()
+        bot._save_markov()
         loop.close()
 
     return 1

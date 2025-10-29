@@ -1,32 +1,34 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 class CytubeError(Exception):
-    pass
+    ''' Base class for all exceptions in the cytube_bot package '''
 
 class ProxyConfigError(CytubeError):
-    pass
+    ''' Exception raised when there is an error in the proxy configuration '''
 
 class SocketConfigError(CytubeError):
-    pass
+    ''' Exception raised when there is an error in the socket configuration '''
 
 class LoginError(CytubeError):
-    pass
+    ''' Exception raised when there is an error in the login process '''
 
 class Kicked(CytubeError):
-    pass
+    ''' Exception raised when the bot is kicked from the channel '''
 
 class ChannelError(CytubeError):
-    pass
+    ''' Exception raised when there is an error in the channel '''
 
 class ChannelPermissionError(ChannelError):
-    pass
+    ''' Exception raised when there is an error in the channel permissions '''
 
 class SocketIOError(Exception):
-    pass
+    ''' Base class for all exceptions in the socketio package '''
 
 class ConnectionFailed(SocketIOError):
-    pass
+    ''' Exception raised when the connection to the server fails '''
 
 class ConnectionClosed(SocketIOError):
-    pass
+    ''' Exception raised when the connection to the server is closed '''
 
 class PingTimeout(ConnectionClosed):
-    pass
+    ''' Exception raised when the connection to the server times out '''

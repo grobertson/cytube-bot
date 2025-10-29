@@ -1,24 +1,19 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import sys
 import socket
 import logging
 
-try:
-    import socks
-    HAS_PYSOCKS = True
-    SOCKS5 = socks.SOCKS5
+# Removed Socks5 support for simplicity, pysocks had resolution issues
+HAS_PYSOCKS = False
+SOCKS5 = None
 
-    ProxyError = socks.ProxyError
-    socksocket = socks.socksocket
-except ImportError:
-    HAS_PYSOCKS = False
-    SOCKS5 = None
+class ProxyError(Exception):
+    pass
 
-    class ProxyError(Exception):
-        pass
-
-    class socksocket: # pylint: disable=invalid-name,too-few-public-methods
-        def __init__(self, *args, **kwargs):
-            raise ProxyConfigError('pysocks is not installed')
+class socksocket: # pylint: disable=invalid-name,too-few-public-methods
+    def __init__(self, *args, **kwargs):
+        raise ProxyConfigError('pysocks is not installed')
 
 
 from .error import ProxyConfigError

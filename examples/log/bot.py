@@ -6,8 +6,8 @@ import asyncio
 from functools import partial
 from time import localtime, strftime
 
-from cytube_bot import Bot
-from cytube_bot.error import CytubeError, SocketIOError
+from cytube_bot_async import Bot
+from cytube_bot_async.error import CytubeError, SocketIOError
 
 from examples.shell import Shell
 from examples.config import get_config, configure_logger
@@ -36,8 +36,11 @@ def log_media(bot, logger, *_):
 
 def main():
     conf, kwargs = get_config()
-    loop = asyncio.get_event_loop()
-
+    #loop = asyncio.get_event_loop()
+    try:
+        loop = asyncio.new_event_loop()
+    except:
+        loop = asyncio.get_running_loop()
     chat_logger = logging.getLogger('chat')
     media_logger = logging.getLogger('media')
     configure_logger(
@@ -51,8 +54,8 @@ def main():
         log_format='[%(asctime).19s] %(message)s'
     )
 
-    bot = Bot(loop=loop, **kwargs)
-    shell = Shell(conf.get('shell', None), bot, loop=loop)
+    bot = Bot(**kwargs)
+    shell = Shell(conf.get('shell', None), bot)
 
     log = partial(log_chat, chat_logger)
     log_m = partial(log_media, bot, media_logger)
@@ -62,12 +65,12 @@ def main():
     bot.on('setCurrent', log_m)
 
     try:
-        task = loop.create_task(bot.run())
+        task = bot.run()
         if shell.task is not None:
             task_ = asyncio.gather(task, shell.task)
         else:
             task_ = task
-        loop.run_until_complete(task_)
+        loop.run_forever()
     except (CytubeError, SocketIOError) as ex:
         print(repr(ex), file=sys.stderr)
     except KeyboardInterrupt:
@@ -76,13 +79,12 @@ def main():
         task_.cancel()
         task.cancel()
         shell.close()
-        loop.run_until_complete(task)
-        if shell.task is not None:
-            loop.run_until_complete(shell.task)
+        #loop.run_until_complete(task)
+        #if shell.task is not None:
+            #loop.run_until_complete(shell.task)
         loop.close()
 
     return 1
-
 
 if __name__ == '__main__':
     sys.exit(main())
