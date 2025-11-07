@@ -117,10 +117,10 @@ class SocketIO:
         self.websocket = websocket
         self.loop = loop
         self._error = None
-        self.closing = asyncio.Event(loop=self.loop)
-        self.closed = asyncio.Event(loop=self.loop)
-        self.ping_response = asyncio.Event(loop=self.loop)
-        self.events = Queue(maxsize=qsize, loop=self.loop)
+        self.closing = asyncio.Event()
+        self.closed = asyncio.Event()
+        self.ping_response = asyncio.Event()
+        self.events = Queue(maxsize=qsize)
         self.response = []
         self.response_lock = asyncio.Lock()
         self.ping_interval = max(1, config.get('pingInterval', 10000) / 1000)
@@ -154,8 +154,7 @@ class SocketIO:
                 self.logger.info('current task is close task')
             else:
                 self.logger.info('wait for close task')
-                await asyncio.wait_for(self.close_task,
-                                            None, loop=self.loop)
+                await asyncio.wait_for(self.close_task, None)
 
         if self.closed.is_set():
             self.logger.info('already closed')
@@ -194,7 +193,7 @@ class SocketIO:
             self.logger.info('wait for tasks')
             await asyncio.wait_for(
                 asyncio.gather(self.ping_task, self.recv_task),
-                None, loop=self.loop
+                None
             )
 
             self.ping_response.clear()
@@ -235,7 +234,7 @@ class SocketIO:
             raise self.error # pylint:disable=raising-bad-type
         return ev
 
-    async def emit(self, event, data, match_response=False, response_timeout=None):
+    async def emit(self, event, data, match_response=None, response_timeout=None):
         """Send an event.
 
         Parameters
@@ -281,8 +280,7 @@ class SocketIO:
 
                 if response_timeout is not None:
                     res = asyncio.wait_for(response.future,
-                                           response_timeout,
-                                           loop=self.loop)
+                                           response_timeout)
                 else:
                     res = response.future
 
@@ -332,8 +330,7 @@ class SocketIO:
                 await self.websocket.send('2')
                 await asyncio.wait_for(
                     self.ping_response.wait(),
-                    self.ping_timeout,
-                    loop=self.loop
+                    self.ping_timeout
                 )
                 dt = max(time() - dt, 0)
         except asyncio.CancelledError:
@@ -414,7 +411,7 @@ class SocketIO:
             raise
 
     @classmethod
-    async def _get_config(cls, url, loop, get):
+    async def _get_config(cls, url, get):
         """Get socket configuration.
 
         Parameters
@@ -429,7 +426,7 @@ class SocketIO:
         """
         url = url + '?EID=2&transport=polling'
         cls.logger.info('get %s', url)
-        data = await get(url, loop=loop)
+        data = await get(url)
         try:
             data = json.loads(data[data.index('{'):])
             if 'sid' not in data:
@@ -454,14 +451,14 @@ class SocketIO:
         -------
         `SocketIO`
         """
-        conf = await cls._get_config(url, loop, get)
+        conf = await cls._get_config(url, get)
         sid = conf['sid']
         cls.logger.info('sid=%s', sid)
         url = '%s?EID=3&transport=websocket&sid=%s' % (
             url.replace('http', 'ws', 1), sid
         )
         cls.logger.info('connect %s', url)
-        websocket = await connect(url, loop=loop)
+        websocket = await connect(url)
         try:
             cls.logger.info('2probe')
             await websocket.send('2probe')

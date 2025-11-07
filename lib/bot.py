@@ -18,6 +18,11 @@ from .playlist import PlaylistItem
 from .media_link import MediaLink
 from .util import get as default_get, to_sequence
 
+try:
+    from common.database import BotDatabase
+except ImportError:
+    BotDatabase = None
+
 
 class Bot:
     """CyTube bot.
@@ -67,7 +72,9 @@ class Bot:
                  restart_delay=5,
                  response_timeout=0.1,
                  get=default_get,
-                 socket_io=SocketIO.connect):
+                 socket_io=SocketIO.connect,
+                 db_path='bot_data.db',
+                 enable_db=True):
         """
         Parameters
         ----------
@@ -86,7 +93,12 @@ class Bot:
             HTTP GET coroutine.
         socket_io : `function` (url, loop), optional
             socket.io connect coroutine.
+        db_path : `str`, optional
+            Path to SQLite database file.
+        enable_db : `bool`, optional
+            Whether to enable database tracking.
         """
+        import time
         self.get = get
         self.socket_io = socket_io
         self.response_timeout = response_timeout
@@ -101,6 +113,20 @@ class Bot:
         self.server = None
         self.socket = None
         self.handlers = collections.defaultdict(list)
+        self.start_time = time.time()  # Track bot start time
+        self.connect_time = None  # Track connection time
+        
+        # Initialize database if available and enabled
+        self.db = None
+        if enable_db and BotDatabase is not None:
+            try:
+                self.db = BotDatabase(db_path)
+                self.logger.info('Database tracking enabled')
+            except Exception as e:
+                self.logger.error('Failed to initialize database: %s', e)
+        elif enable_db:
+            self.logger.warning('Database module not available')
+        
         for attr in dir(self):
             if attr.startswith('_on_'):
                 self.on(attr[4:], getattr(self, attr))
@@ -164,9 +190,23 @@ class Bot:
     def _on_addUser(self, _, data):
         self._add_user(data)
         self.logger.info('userlist: %s', self.channel.userlist)
+        
+        # Track user join in database
+        if self.db:
+            username = data.get('name')
+            if username:
+                self.db.user_joined(username)
+                # Update high water mark
+                user_count = len(self.channel.userlist)
+                self.db.update_high_water_mark(user_count)
 
     def _on_userLeave(self, _, data):
         user = data['name']
+        
+        # Track user leave in database
+        if self.db and user:
+            self.db.user_left(user)
+        
         try:
             del self.channel.userlist[user]
         except KeyError:
@@ -174,13 +214,37 @@ class Bot:
         self.logger.info('userlist: %s', self.channel.userlist)
 
     def _on_setUserMeta(self, _, data):
-        self.channel.userlist[data['name']].meta = data['meta']
+        # Check if user exists before updating metadata
+        user_name = data.get('name', '')
+        # Ignore blank usernames (server sometimes sends these)
+        if not user_name:
+            return
+        if user_name in self.channel.userlist:
+            self.channel.userlist[user_name].meta = data['meta']
+        else:
+            self.logger.warning('setUserMeta: user %s not in userlist yet', user_name)
 
     def _on_setUserRank(self, _, data):
-        self.channel.userlist[data['name']].rank = data['rank']
+        # Check if user exists before updating rank
+        user_name = data.get('name', '')
+        # Ignore blank usernames (server sometimes sends these)
+        if not user_name:
+            return
+        if user_name in self.channel.userlist:
+            self.channel.userlist[user_name].rank = data['rank']
+        else:
+            self.logger.warning('setUserRank: user %s not in userlist yet', user_name)
 
     def _on_setAFK(self, _, data):
-        self.channel.userlist[data['name']].afk = data['afk']
+        # Check if user exists before updating AFK status
+        user_name = data.get('name', '')
+        # Ignore blank usernames (server sometimes sends these)
+        if not user_name:
+            return
+        if user_name in self.channel.userlist:
+            self.channel.userlist[user_name].afk = data['afk']
+        else:
+            self.logger.warning('setAFK: user %s not in userlist yet', user_name)
 
     def _on_setLeader(self, _, data):
         self.channel.userlist.leader = data
@@ -230,6 +294,13 @@ class Bot:
     def _on_setPlaylistLocked(self, _, data):
         self.channel.playlist.locked = data
         self.logger.info('playlist locked %s', data)
+    
+    def _on_chatMsg(self, _, data):
+        """Track chat messages in database"""
+        if self.db:
+            username = data.get('username')
+            if username:
+                self.db.user_chat_message(username)
 
     async def get_socket_config(self):
         """Get server URL.
@@ -247,7 +318,7 @@ class Bot:
             url = 'https://' + url
         self.logger.info('get_socket_config %s', url)
         try:
-            conf = await self.get(url, loop=self.loop)
+            conf = await self.get(url)
         except (CytubeError, asyncio.CancelledError):
             raise
         except Exception as ex:
@@ -297,11 +368,13 @@ class Bot:
         ------
         `cytube_bot.error.SocketIOError`
         """
+        import time
         await self.disconnect()
         if self.server is None:
             await self.get_socket_config()
         self.logger.info('connect %s', self.server)
         self.socket = await self.socket_io(self.server, loop=self.loop)
+        self.connect_time = time.time()  # Record connection time
 
     async def login(self):
         """Connect, join channel, log in.

@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 
 import sys
+import os
+from pathlib import Path
+
+# Add the project root to the Python path
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
 import asyncio
 
 from lib import Bot, MessageParser
@@ -27,32 +34,29 @@ class EchoBot(Bot):
             await self.chat(msg.replace(self.user.name, username, 1))
 
 
-def main():
+async def run_bot():
+    """Run the bot with proper async handling"""
     conf, kwargs = get_config()
-    loop = asyncio.get_event_loop()
 
-    bot = EchoBot(loop=loop, **kwargs)
-    shell = Shell(conf.get('shell', None), bot, loop=loop)
+    bot = EchoBot(**kwargs)
+    shell = Shell(conf.get('shell', None), bot)
+    await shell.start()
 
     try:
-        task = loop.create_task(bot.run())
-        if shell.task is not None:
-            task_ = asyncio.gather(task, shell.task)
-        else:
-            task_ = task
-        loop.run_until_complete(task_)
+        await bot.run()
     except (CytubeError, SocketIOError) as ex:
         print(repr(ex), file=sys.stderr)
+    except asyncio.CancelledError:
+        pass
+    finally:
+        shell.close()
+
+
+def main():
+    try:
+        asyncio.run(run_bot())
     except KeyboardInterrupt:
         return 0
-    finally:
-        task_.cancel()
-        task.cancel()
-        shell.close()
-        loop.run_until_complete(task)
-        if shell.task is not None:
-            loop.run_until_complete(shell.task)
-        loop.close()
 
     return 1
 

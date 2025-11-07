@@ -11,6 +11,11 @@ This release represents a complete architectural overhaul of the cytube-bot proj
   - `lib/` - Core CyTube interaction library (formerly `cytube_bot_async/`)
   - `bots/` - Bot implementations (formerly `examples/`)
   - `common/` - Shared utilities for bot development
+
+- **Python Path Hack**:
+  - All bot files now include automatic path detection
+  - Bots can be run from any directory without manual PYTHONPATH setup
+  - Uses `Path(__file__).parent.parent.parent` to locate project root
   
 - **Updated Documentation**:
   - Comprehensive README with quick start guide

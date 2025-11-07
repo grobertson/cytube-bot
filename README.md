@@ -126,6 +126,12 @@ Create a new directory under `bots/` and subclass the `Bot` class:
 ```python
 #!/usr/bin/env python3
 import sys
+from pathlib import Path
+
+# Add project root to Python path (allows running from any directory)
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root))
+
 import asyncio
 from lib import Bot, MessageParser
 from lib.error import CytubeError, SocketIOError
