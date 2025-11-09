@@ -338,7 +338,16 @@ Examples:
         info.append(f"AFK: {'Yes' if bot.user.afk else 'No'}")
         if bot.channel:
             info.append(f"Channel: {bot.channel.name}")
-            info.append(f"Users: {len(bot.channel.userlist)}")
+            
+            # Show both chat users and total connected viewers
+            chat_users = len(bot.channel.userlist)
+            total_viewers = bot.channel.userlist.count
+            if total_viewers and total_viewers != chat_users:
+                info.append(f"Users: {chat_users} in chat, "
+                          f"{total_viewers} connected")
+            else:
+                info.append(f"Users: {chat_users}")
+            
             if bot.channel.playlist:
                 total = len(bot.channel.playlist.queue)
                 info.append(f"Playlist: {total} items")
@@ -387,18 +396,36 @@ Examples:
         import datetime
         stats = []
         
-        # High water mark
+        # Current viewer stats
+        if bot.channel:
+            chat_users = len(bot.channel.userlist)
+            total_viewers = bot.channel.userlist.count
+            if total_viewers and total_viewers != chat_users:
+                stats.append(f"Current: {chat_users} in chat, "
+                           f"{total_viewers} connected")
+            else:
+                stats.append(f"Current: {chat_users} users")
+        
+        # High water marks
         max_users, max_timestamp = bot.db.get_high_water_mark()
         if max_timestamp:
             dt = datetime.datetime.fromtimestamp(max_timestamp)
             date_str = dt.strftime('%Y-%m-%d %H:%M')
-            stats.append(f"Peak users: {max_users} ({date_str})")
+            stats.append(f"Peak (chat): {max_users} ({date_str})")
         else:
-            stats.append(f"Peak users: {max_users}")
+            stats.append(f"Peak (chat): {max_users}")
+        
+        max_connected, max_conn_timestamp = bot.db.get_high_water_mark_connected()
+        if max_conn_timestamp:
+            dt = datetime.datetime.fromtimestamp(max_conn_timestamp)
+            date_str = dt.strftime('%Y-%m-%d %H:%M')
+            stats.append(f"Peak (connected): {max_connected} ({date_str})")
+        elif max_connected:
+            stats.append(f"Peak (connected): {max_connected}")
         
         # Total users seen
         total_users = bot.db.get_total_users_seen()
-        stats.append(f"Total users: {total_users}")
+        stats.append(f"Total seen: {total_users}")
         
         # Top chatters
         top_chatters = bot.db.get_top_chatters(5)

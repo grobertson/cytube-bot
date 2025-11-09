@@ -61,6 +61,8 @@ class BotDatabase:
                 id INTEGER PRIMARY KEY CHECK (id = 1),
                 max_users INTEGER DEFAULT 0,
                 max_users_timestamp INTEGER,
+                max_connected INTEGER DEFAULT 0,
+                max_connected_timestamp INTEGER,
                 last_updated INTEGER
             )
         ''')
@@ -72,6 +74,20 @@ class BotDatabase:
                 INSERT INTO channel_stats (id, max_users, last_updated)
                 VALUES (1, 0, ?)
             ''', (int(time.time()),))
+        else:
+            # Migrate existing database - add new columns if they don't exist
+            cursor.execute('PRAGMA table_info(channel_stats)')
+            columns = [col[1] for col in cursor.fetchall()]
+            if 'max_connected' not in columns:
+                cursor.execute('''
+                    ALTER TABLE channel_stats 
+                    ADD COLUMN max_connected INTEGER DEFAULT 0
+                ''')
+            if 'max_connected_timestamp' not in columns:
+                cursor.execute('''
+                    ALTER TABLE channel_stats 
+                    ADD COLUMN max_connected_timestamp INTEGER
+                ''')
         
         self.conn.commit()
         self.logger.info('Database tables initialized')
@@ -170,21 +186,30 @@ class BotDatabase:
         ''', (int(time.time()), username, action_type, details))
         self.conn.commit()
     
-    def update_high_water_mark(self, current_user_count):
+    def update_high_water_mark(self, current_user_count, 
+                               current_connected_count=None):
         """Update high water mark if current count exceeds it
         
         Args:
-            current_user_count: Current number of users in channel
+            current_user_count: Current number of users in chat
+            current_connected_count: Current number of connected viewers
         """
         cursor = self.conn.cursor()
         now = int(time.time())
         
         # Get current max
-        cursor.execute('SELECT max_users FROM channel_stats WHERE id = 1')
+        cursor.execute('''
+            SELECT max_users, max_connected 
+            FROM channel_stats WHERE id = 1
+        ''')
         row = cursor.fetchone()
-        current_max = row['max_users'] if row else 0
+        current_max_users = row['max_users'] if row else 0
+        current_max_connected = row['max_connected'] if row else 0
         
-        if current_user_count > current_max:
+        updated = False
+        
+        # Update max users (chat) if exceeded
+        if current_user_count > current_max_users:
             cursor.execute('''
                 UPDATE channel_stats
                 SET max_users = ?,
@@ -192,9 +217,25 @@ class BotDatabase:
                     last_updated = ?
                 WHERE id = 1
             ''', (current_user_count, now, now))
-            self.conn.commit()
-            self.logger.info('New high water mark: %d users', 
+            updated = True
+            self.logger.info('New high water mark (chat): %d users', 
                            current_user_count)
+        
+        # Update max connected if exceeded
+        if current_connected_count and current_connected_count > current_max_connected:
+            cursor.execute('''
+                UPDATE channel_stats
+                SET max_connected = ?,
+                    max_connected_timestamp = ?,
+                    last_updated = ?
+                WHERE id = 1
+            ''', (current_connected_count, now, now))
+            updated = True
+            self.logger.info('New high water mark (connected): %d viewers', 
+                           current_connected_count)
+        
+        if updated:
+            self.conn.commit()
     
     def get_user_stats(self, username):
         """Get statistics for a specific user
@@ -216,7 +257,7 @@ class BotDatabase:
         return None
     
     def get_high_water_mark(self):
-        """Get the high water mark (max users ever connected)
+        """Get the high water mark (max users ever in chat)
         
         Returns:
             tuple: (max_users, timestamp) or (0, None)
@@ -230,6 +271,23 @@ class BotDatabase:
         
         if row:
             return (row['max_users'], row['max_users_timestamp'])
+        return (0, None)
+    
+    def get_high_water_mark_connected(self):
+        """Get the high water mark for connected viewers
+        
+        Returns:
+            tuple: (max_connected, timestamp) or (0, None)
+        """
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT max_connected, max_connected_timestamp
+            FROM channel_stats WHERE id = 1
+        ''')
+        row = cursor.fetchone()
+        
+        if row:
+            return (row['max_connected'], row['max_connected_timestamp'])
         return (0, None)
     
     def get_top_chatters(self, limit=10):

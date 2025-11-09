@@ -155,6 +155,12 @@ class Bot:
 
     def _on_usercount(self, _, data):
         self.channel.userlist.count = data
+        
+        # Update high water mark for connected count when it changes
+        if self.db:
+            user_count = len(self.channel.userlist)
+            connected_count = data
+            self.db.update_high_water_mark(user_count, connected_count)
 
     @staticmethod
     def _on_needPassword(_, data):
@@ -198,7 +204,8 @@ class Bot:
                 self.db.user_joined(username)
                 # Update high water mark
                 user_count = len(self.channel.userlist)
-                self.db.update_high_water_mark(user_count)
+                connected_count = self.channel.userlist.count
+                self.db.update_high_water_mark(user_count, connected_count)
 
     def _on_userLeave(self, _, data):
         user = data['name']

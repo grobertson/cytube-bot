@@ -52,7 +52,7 @@ help
 Shows information about the bot and channel, including:
 - Bot name and rank
 - Channel name
-- Number of users online
+- Number of users in chat and total viewers (includes those watching but not in chat)
 - Playlist size and total duration
 - Currently playing video
 
@@ -67,7 +67,7 @@ Bot: MyBot
 Rank: 3.0
 AFK: No
 Channel: mychannel
-Users: 12
+Users: 12 in chat, 25 connected
 Playlist: 25 items
 Duration: 3h 42m 15s
 Now playing: Cool Video Title
@@ -96,7 +96,8 @@ Playback: Playing
 
 #### `stats`
 Shows database statistics including:
-- Peak number of users (high water mark)
+- Current users in chat vs. total viewers
+- Peak number of users in chat (high water mark)
 - Total unique users seen
 - Top 5 most active chatters
 
@@ -107,8 +108,10 @@ stats
 
 **Sample Output:**
 ```
-Peak users: 25 (2025-11-07 14:30)
-Total users: 156
+Current: 12 in chat, 25 connected
+Peak (chat): 35 (2025-11-07 14:30)
+Peak (connected): 42 (2025-11-08 19:15)
+Total seen: 156
 
 Top chatters:
   1. Alice: 1234 msg
