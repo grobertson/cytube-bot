@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyTube Bot Status</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 20px;
+            /* Increase overall UI size for legibility */
+            font-size: 150%;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .refresh-info {
+            text-align: center;
+            color: white;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+        
+        .stats-grid {
+            display: grid;
+            /* Force a two-column layout on wider screens for legibility */
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        
+        .stat-title {
+            font-size: 0.9em;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+        
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .stat-subtitle {
+            font-size: 0.85em;
+            color: #999;
+        }
+        
+        .chart-container {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .chart-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .time-selector {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .time-btn {
+            padding: 8px 16px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .time-btn:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .time-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .top-chatters {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .top-chatters h2 {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .chatter-list {
+            list-style: none;
+        }
+        
+        .chatter-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .chatter-item:last-child {
+            border-bottom: none;
+        }
+        
+        .chatter-rank {
+            font-weight: bold;
+            color: #667eea;
+            min-width: 30px;
+        }
+        
+        .chatter-name {
+            flex: 1;
+            margin-left: 15px;
+            font-weight: 500;
+        }
+        
+        .chatter-count {
+            color: #999;
+            font-size: 0.9em;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+        
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2em;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .time-selector {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 CyTube Bot Status</h1>
+            <div class="subtitle">Live statistics and metrics</div>
+        </header>
+        
+        <div class="refresh-info">
+            Auto-refreshing every 30 seconds • Last update: <span id="last-update">Loading...</span>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-title">Current Chat Users</div>
+                <div class="stat-value" id="current-chat">-</div>
+                <div class="stat-subtitle">Active in channel now</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-title">Current Connected</div>
+                <div class="stat-value" id="current-connected">-</div>
+                <div class="stat-subtitle">Total viewers now</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-title">Now Playing</div>
+                <div class="stat-value" id="now-playing" style="font-size: 1.3em;">-</div>
+                <div class="stat-subtitle" id="playlist-info">Loading...</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-title">Peak Chat Users</div>
+                <div class="stat-value" id="peak-chat">-</div>
+                <div class="stat-subtitle" id="peak-chat-time">Loading...</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-title">Peak Connected</div>
+                <div class="stat-value" id="peak-connected">-</div>
+                <div class="stat-subtitle" id="peak-connected-time">Loading...</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-title">Total Users Seen</div>
+                <div class="stat-value" id="total-users">-</div>
+                <div class="stat-subtitle">All-time unique visitors</div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <h2 style="margin-bottom: 12px; color: #333;">💬 Recent Chat (Last 20 minutes)</h2>
+
+            <div id="recent-chat" style="max-height: 420px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 0.9em; margin-bottom: 10px;">
+                <div style="color: #999; text-align: center; padding: 20px;">Loading...</div>
+            </div>
+
+            <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                <input id="send-input" type="text" placeholder="Send message as bot..." style="flex:1; padding:10px; border-radius:6px; border:1px solid #ddd;" />
+                <button id="send-btn" style="padding:10px 14px; border-radius:6px; border:none; background:#667eea; color:#fff; cursor:pointer;">Send</button>
+                <span id="send-status" style="margin-left:10px; color:#999; font-size:0.85em;"></span>
+                <label style="margin-left:10px; color:#666; font-size:0.9em;"><input type="checkbox" id="sticky-checkbox" checked /> Sticky</label>
+                <label style="margin-left:10px; color:#666; font-size:0.9em;">Poll:
+                    <select id="poll-interval" style="margin-left:6px;">
+                        <option value="2">2s</option>
+                        <option value="3" selected>3s</option>
+                        <option value="4">4s</option>
+                        <option value="5">5s</option>
+                    </select>
+                </label>
+                <button id="token-btn" style="padding:8px 12px; border-radius:6px; border:1px solid #667eea; background:white; color:#667eea; cursor:pointer; font-size:0.85em;">🔑 Token</button>
+            </div>
+            
+            <!-- Outbound Message Status -->
+            <details style="margin-top:15px;">
+                <summary style="cursor:pointer; color:#667eea; font-weight:500; padding:8px; background:#f8f9fa; border-radius:4px;">📤 Outbound Message Status (Click to expand)</summary>
+                <div id="outbound-status" style="margin-top:10px; max-height:250px; overflow-y:auto; background:#fff; border:1px solid #e0e0e0; border-radius:4px; padding:10px; font-size:0.75em;">
+                    <div style="color:#999; text-align:center; padding:10px;">Loading...</div>
+                </div>
+            </details>
+        </div>
+        
+        <!-- Token Management Modal -->
+        <div id="token-modal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+            <div style="background:white; border-radius:10px; padding:30px; max-width:600px; width:90%; max-height:80vh; overflow-y:auto;">
+                <h2 style="margin-top:0; color:#333;">🔑 API Token Management</h2>
+                
+                <div style="margin-bottom:20px; padding:15px; background:#f0f7ff; border-radius:6px; border-left:4px solid #667eea;">
+                    <strong>Current Token:</strong><br>
+                    <code id="current-token-display" style="word-break:break-all; background:#fff; padding:8px; display:block; margin-top:8px; border-radius:4px;">Not set</code>
+                    <button id="set-token-btn" style="margin-top:10px; padding:8px 12px; border:none; background:#667eea; color:white; border-radius:4px; cursor:pointer;">Set Token</button>
+                    <button id="clear-token-btn" style="margin-top:10px; margin-left:10px; padding:8px 12px; border:1px solid #ccc; background:white; color:#333; border-radius:4px; cursor:pointer;">Clear</button>
+                </div>
+                
+                <div style="margin-bottom:20px;">
+                    <h3 style="color:#333; font-size:1.1em; margin-bottom:10px;">Generate New Token</h3>
+                    <input id="token-desc" type="text" placeholder="Description (e.g., 'My laptop')" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px; margin-bottom:10px;">
+                    <button id="gen-token-btn" style="padding:10px 16px; border:none; background:#28a745; color:white; border-radius:4px; cursor:pointer; width:100%;">Generate Token</button>
+                    <div id="new-token-display" style="margin-top:10px; padding:12px; background:#d4edda; border:1px solid #c3e6cb; border-radius:4px; display:none;">
+                        <strong style="color:#155724;">New Token (save this!):</strong><br>
+                        <code id="new-token-value" style="word-break:break-all; display:block; margin-top:8px; background:white; padding:8px; border-radius:4px;"></code>
+                        <button id="copy-token-btn" style="margin-top:8px; padding:6px 12px; border:none; background:#155724; color:white; border-radius:4px; cursor:pointer;">Copy to Clipboard</button>
+                    </div>
+                </div>
+                
+                <button id="close-modal-btn" style="padding:10px 20px; border:1px solid #ccc; background:white; color:#333; border-radius:4px; cursor:pointer; width:100%;">Close</button>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">User Activity Over Time</div>
+                <div class="time-selector">
+                    <button class="time-btn" data-hours="1">1h</button>
+                    <button class="time-btn" data-hours="6">6h</button>
+                    <button class="time-btn active" data-hours="24">24h</button>
+                    <button class="time-btn" data-hours="168">7d</button>
+                </div>
+            </div>
+            <canvas id="userChart"></canvas>
+        </div>
+        
+        <div class="top-chatters">
+            <h2>🏆 Top Chatters</h2>
+            <ul class="chatter-list" id="chatter-list">
+                <li class="loading">Loading...</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+    let chart = null;
+    let currentHours = 24;
+    let currentPollInterval = 3; // seconds
+    let currentPollId = null;
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStats();
+            loadCurrent();
+            loadHistory(currentHours);
+
+            // Start current polling with configurable interval
+            startCurrentPolling(currentPollInterval);
+
+            // Historical/stat polling every 30 seconds
+            setInterval(function() {
+                loadStats();
+                loadHistory(currentHours);
+            }, 30000);
+
+            // Send button handler
+            document.getElementById('send-btn').addEventListener('click', function() {
+                sendMessage();
+            });
+            
+            // Allow Enter key to send message
+            document.getElementById('send-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            // Token management UI
+            document.getElementById('token-btn').addEventListener('click', function() {
+                showTokenModal();
+            });
+            
+            document.getElementById('close-modal-btn').addEventListener('click', function() {
+                hideTokenModal();
+            });
+            
+            document.getElementById('set-token-btn').addEventListener('click', function() {
+                const token = prompt('Enter your API token:');
+                if (token) {
+                    localStorage.setItem('apiToken', token);
+                    updateTokenDisplay();
+                    alert('Token saved!');
+                }
+            });
+            
+            document.getElementById('clear-token-btn').addEventListener('click', function() {
+                if (confirm('Clear saved token?')) {
+                    localStorage.removeItem('apiToken');
+                    updateTokenDisplay();
+                }
+            });
+            
+            document.getElementById('gen-token-btn').addEventListener('click', function() {
+                generateNewToken();
+            });
+            
+            document.getElementById('copy-token-btn').addEventListener('click', function() {
+                const token = document.getElementById('new-token-value').textContent;
+                navigator.clipboard.writeText(token).then(() => {
+                    alert('Token copied to clipboard!');
+                });
+            });
+
+            // Poll interval selector
+            document.getElementById('poll-interval').addEventListener('change', function() {
+                const val = parseInt(this.value) || 3;
+                currentPollInterval = Math.max(2, Math.min(5, val));
+                startCurrentPolling(currentPollInterval);
+            });
+            
+            // Load outbound status initially and poll every 5 seconds
+            loadOutboundStatus();
+            setInterval(loadOutboundStatus, 5000);
+            
+            // Time selector buttons
+            document.querySelectorAll('.time-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    currentHours = parseInt(this.dataset.hours);
+                    loadHistory(currentHours);
+                });
+            });
+        });
+        
+        function loadStats() {
+            fetch('/api/stats')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showError(data.error);
+                        return;
+                    }
+                    
+                    // Update peak stats
+                    document.getElementById('peak-chat').textContent = data.high_water_marks.chat.count;
+                    document.getElementById('peak-connected').textContent = data.high_water_marks.connected.count;
+                    
+                    // Update timestamps
+                    if (data.high_water_marks.chat.timestamp) {
+                        const chatDate = new Date(data.high_water_marks.chat.timestamp * 1000);
+                        document.getElementById('peak-chat-time').textContent = formatDate(chatDate);
+                    }
+                    
+                    if (data.high_water_marks.connected.timestamp) {
+                        const connDate = new Date(data.high_water_marks.connected.timestamp * 1000);
+                        document.getElementById('peak-connected-time').textContent = formatDate(connDate);
+                    }
+                    
+                    // Update total users
+                    document.getElementById('total-users').textContent = data.total_users_seen;
+                    
+                    // Update top chatters
+                    const chatterList = document.getElementById('chatter-list');
+                    chatterList.innerHTML = '';
+                    
+                    if (data.top_chatters.length === 0) {
+                        chatterList.innerHTML = '<li class="loading">No chat data available yet</li>';
+                    } else {
+                        data.top_chatters.forEach((chatter, index) => {
+                            const li = document.createElement('li');
+                            li.className = 'chatter-item';
+                            li.innerHTML = `
+                                <span class="chatter-rank">#${index + 1}</span>
+                                <span class="chatter-name">${escapeHtml(chatter.username)}</span>
+                                <span class="chatter-count">${chatter.messages.toLocaleString()} messages</span>
+                            `;
+                            chatterList.appendChild(li);
+                        });
+                    }
+                    
+                    // Update last refresh time
+                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                })
+                .catch(error => {
+                    showError('Failed to load statistics: ' + error.message);
+                });
+        }
+        
+        function loadCurrent() {
+            fetch('/api/current')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showError(data.error);
+                        return;
+                    }
+                    
+                    const status = data.status || {};
+                    
+                    // Update current user counts
+                    document.getElementById('current-chat').textContent = status.current_chat_users || 0;
+                    document.getElementById('current-connected').textContent = status.current_connected_users || 0;
+                    
+                    // Update now playing
+                    if (status.current_media_title) {
+                        const title = status.current_media_title;
+                        const maxLen = 30;
+                        document.getElementById('now-playing').textContent = title.length > maxLen ? title.substring(0, maxLen) + '...' : title;
+                        document.getElementById('now-playing').title = title;
+                    } else {
+                        document.getElementById('now-playing').textContent = 'Nothing';
+                    }
+                    
+                    // Update playlist info
+                    const playlistItems = status.playlist_items || 0;
+                    document.getElementById('playlist-info').textContent = `${playlistItems} items in playlist`;
+                    
+                    // Update recent chat
+                    const chatContainer = document.getElementById('recent-chat');
+                    const sticky = document.getElementById('sticky-checkbox').checked;
+                    if (data.recent_chat && data.recent_chat.length > 0) {
+                        chatContainer.innerHTML = '';
+                        data.recent_chat.forEach(msg => {
+                            const timestamp = new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+                            const div = document.createElement('div');
+                            div.style.marginBottom = '8px';
+                            
+                            // Build message with proper escaping
+                            const timeSpan = document.createElement('span');
+                            timeSpan.style.color = '#999';
+                            timeSpan.textContent = `[${timestamp}] `;
+                            
+                            const userSpan = document.createElement('strong');
+                            userSpan.style.color = '#667eea';
+                            userSpan.textContent = `${msg.username}: `;
+                            
+                            const msgSpan = document.createElement('span');
+                            msgSpan.textContent = msg.message;
+                            
+                            div.appendChild(timeSpan);
+                            div.appendChild(userSpan);
+                            div.appendChild(msgSpan);
+                            
+                            chatContainer.appendChild(div);
+                        });
+                        if (sticky) {
+                            chatContainer.scrollTop = chatContainer.scrollHeight;
+                        }
+                    } else {
+                        chatContainer.innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">No recent chat messages</div>';
+                    }
+                    
+                    // Update last refresh time
+                    document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                })
+                .catch(error => {
+                    showError('Failed to load current data: ' + error.message);
+                });
+        }
+
+        function startCurrentPolling(intervalSec) {
+            if (currentPollId) {
+                clearInterval(currentPollId);
+            }
+            currentPollId = setInterval(loadCurrent, Math.max(2, intervalSec) * 1000);
+            document.querySelector('.refresh-info').innerHTML = `Auto-refreshing every ${intervalSec} seconds • Last update: <span id="last-update">Loading...</span>`;
+        }
+        
+        function loadHistory(hours) {
+            fetch(`/api/history/${hours}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showError(data.error);
+                        return;
+                    }
+                    
+                    updateChart(data.data);
+                })
+                .catch(error => {
+                    showError('Failed to load history: ' + error.message);
+                });
+        }
+        
+        function updateChart(historyData) {
+            const ctx = document.getElementById('userChart').getContext('2d');
+            
+            // Prepare data
+            const labels = historyData.map(d => new Date(d.timestamp * 1000));
+            const chatUsers = historyData.map(d => d.chat_users);
+            const connectedUsers = historyData.map(d => d.connected_users);
+            
+            // Destroy existing chart
+            if (chart) {
+                chart.destroy();
+            }
+            
+            // Create new chart
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Chat Users',
+                            data: chatUsers,
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Connected Viewers',
+                            data: connectedUsers,
+                            borderColor: '#764ba2',
+                            backgroundColor: 'rgba(118, 75, 162, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2.5,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    return formatDateTime(context[0].parsed.x);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: currentHours <= 6 ? 'minute' : (currentHours <= 24 ? 'hour' : 'day'),
+                                displayFormats: {
+                                    minute: 'HH:mm',
+                                    hour: 'MMM d, HH:mm',
+                                    day: 'MMM d'
+                                }
+                            },
+                            title: {
+                                display: true,
+                                text: 'Time'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Users'
+                            },
+                            ticks: {
+                                stepSize: 1,
+                                callback: function(value) {
+                                    return Number.isInteger(value) ? value : '';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function formatDate(date) {
+            const now = new Date();
+            const diff = now - date;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            
+            if (days === 0) {
+                return 'Today at ' + date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+            } else if (days === 1) {
+                return 'Yesterday at ' + date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+            } else if (days < 7) {
+                return days + ' days ago';
+            } else {
+                return date.toLocaleDateString();
+            }
+        }
+        
+        function formatDateTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString([], {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function showError(message) {
+            console.error(message);
+            // Could add visual error display here
+        }
+        
+        // Token management functions
+        function getApiToken() {
+            return localStorage.getItem('apiToken') || '';
+        }
+        
+        function updateTokenDisplay() {
+            const token = getApiToken();
+            const display = document.getElementById('current-token-display');
+            if (token) {
+                display.textContent = token.substring(0, 16) + '...';
+                display.style.color = '#155724';
+            } else {
+                display.textContent = 'Not set (token required for sending messages)';
+                display.style.color = '#856404';
+            }
+        }
+        
+        function showTokenModal() {
+            updateTokenDisplay();
+            const modal = document.getElementById('token-modal');
+            modal.style.display = 'flex';
+            document.getElementById('new-token-display').style.display = 'none';
+        }
+        
+        function hideTokenModal() {
+            document.getElementById('token-modal').style.display = 'none';
+        }
+        
+        function generateNewToken() {
+            const desc = document.getElementById('token-desc').value.trim();
+            
+            fetch('/api/tokens', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({description: desc})
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.token) {
+                    document.getElementById('new-token-value').textContent = data.token;
+                    document.getElementById('new-token-display').style.display = 'block';
+                    document.getElementById('token-desc').value = '';
+                    
+                    // Optionally save immediately
+                    if (confirm('Save this token as your current token?')) {
+                        localStorage.setItem('apiToken', data.token);
+                        updateTokenDisplay();
+                    }
+                } else {
+                    alert('Failed to generate token: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(err => {
+                alert('Failed to generate token: ' + err.message);
+            });
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('send-input');
+            const text = input.value.trim();
+            const statusSpan = document.getElementById('send-status');
+            
+            if (!text) return;
+            
+            const token = getApiToken();
+            if (!token) {
+                alert('No API token set. Click the 🔑 Token button to set one.');
+                return;
+            }
+            
+            statusSpan.textContent = 'Queuing...';
+            statusSpan.style.color = '#667eea';
+            
+            fetch('/api/say', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Token': token
+                },
+                body: JSON.stringify({message: text})
+            })
+            .then(r => r.json())
+            .then(resp => {
+                if (resp && resp.queued) {
+                    input.value = '';
+                    statusSpan.textContent = '✓ Queued (id: ' + resp.id + ')';
+                    statusSpan.style.color = '#28a745';
+                    setTimeout(() => { statusSpan.textContent = ''; }, 3000);
+                } else if (resp && resp.error) {
+                    statusSpan.textContent = '✗ Error: ' + resp.error;
+                    statusSpan.style.color = '#dc3545';
+                    if (resp.error.includes('Unauthorized')) {
+                        setTimeout(() => {
+                            if (confirm('Invalid token. Generate a new one?')) {
+                                showTokenModal();
+                            }
+                        }, 100);
+                    }
+                }
+            })
+            .catch(err => {
+                statusSpan.textContent = '✗ Failed: ' + err.message;
+                statusSpan.style.color = '#dc3545';
+            });
+        }
+        
+        function loadOutboundStatus() {
+            fetch('/api/outbound/recent?limit=10')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error loading outbound status:', data.error);
+                        return;
+                    }
+                    
+                    const container = document.getElementById('outbound-status');
+                    
+                    if (!data.messages || data.messages.length === 0) {
+                        container.innerHTML = '<div style="color:#999; text-align:center; padding:10px;">No recent outbound messages</div>';
+                        return;
+                    }
+                    
+                    container.innerHTML = '';
+                    data.messages.forEach(msg => {
+                        const div = document.createElement('div');
+                        div.style.padding = '8px';
+                        div.style.borderBottom = '1px solid #e0e0e0';
+                        div.style.marginBottom = '6px';
+                        
+                        // Status badge with color
+                        let statusColor, statusText;
+                        switch(msg.status) {
+                            case 'sent':
+                                statusColor = '#28a745';
+                                statusText = '✓ Sent';
+                                break;
+                            case 'queued':
+                                statusColor = '#667eea';
+                                statusText = '⏱ Queued';
+                                break;
+                            case 'retrying':
+                                statusColor = '#ffc107';
+                                statusText = '🔄 Retry ' + (msg.retry_count || 0);
+                                break;
+                            case 'failed':
+                                statusColor = '#dc3545';
+                                statusText = '✗ Failed';
+                                break;
+                            case 'abandoned':
+                                statusColor = '#6c757d';
+                                statusText = '⚠ Abandoned';
+                                break;
+                            default:
+                                statusColor = '#999';
+                                statusText = msg.status;
+                        }
+                        
+                        const ts = new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+                        
+                        div.innerHTML = `
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                                <span style="color:${statusColor}; font-weight:bold; font-size:0.9em;">${statusText}</span>
+                                <span style="color:#999; font-size:0.85em;">ID:${msg.id} ${ts}</span>
+                            </div>
+                            <div style="font-family:monospace; color:#333; font-size:0.9em; word-wrap:break-word;">
+                                ${escapeHtml(msg.message_preview || msg.message)}
+                            </div>
+                            ${msg.last_error ? '<div style="color:#dc3545; font-size:0.85em; margin-top:4px;">Error: ' + escapeHtml(msg.last_error) + '</div>' : ''}
+                        `;
+                        
+                        container.appendChild(div);
+                    });
+                })
+                .catch(err => {
+                    console.error('Failed to load outbound status:', err);
+                });
+        }
+    </script>
+</body>
+</html>

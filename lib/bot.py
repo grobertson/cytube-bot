@@ -83,7 +83,8 @@ class Bot:
         channel : `str` or (`str`, `str`)
             'name' or ('name', 'password')
         user : `None` or `str` or (`str`, `str`), optional
-            `None` (anonymous) or 'name' (guest) or ('name', 'password') (registered)
+            `None` (anonymous) or 'name' (guest) or
+            ('name', 'password') (registered)
         restart_delay : `None` or `float`, optional
             Delay in seconds before reconnection.
             `None` or < 0 - do not reconnect.
@@ -108,13 +109,17 @@ class Bot:
         self.user = User(*to_sequence(user))
         try:
             self.loop = asyncio.get_running_loop()
-        except:
+        except RuntimeError:
             self.loop = asyncio.new_event_loop()
         self.server = None
         self.socket = None
         self.handlers = collections.defaultdict(list)
         self.start_time = time.time()  # Track bot start time
         self.connect_time = None  # Track connection time
+        self._history_task = None  # Background task for logging user counts
+        self._status_task = None  # Background task for updating status
+        self._outbound_task = None  # Background task for sending messages
+        self._maintenance_task = None  # Background task for DB maintenance
         
         # Initialize database if available and enabled
         self.db = None
@@ -168,7 +173,7 @@ class Bot:
             raise LoginError('invalid channel password')
 
     def _on_noflood(self, _, data):
-        self.loger.error('noflood: %r', data)
+        self.logger.error('noflood: %r', data)
 
     def _on_errorMsg(self, _, data):
         self.logger.error('error: %r', data)
@@ -229,7 +234,8 @@ class Bot:
         if user_name in self.channel.userlist:
             self.channel.userlist[user_name].meta = data['meta']
         else:
-            self.logger.warning('setUserMeta: user %s not in userlist yet', user_name)
+            self.logger.warning(
+                'setUserMeta: user %s not in userlist yet', user_name)
 
     def _on_setUserRank(self, _, data):
         # Check if user exists before updating rank
@@ -240,7 +246,8 @@ class Bot:
         if user_name in self.channel.userlist:
             self.channel.userlist[user_name].rank = data['rank']
         else:
-            self.logger.warning('setUserRank: user %s not in userlist yet', user_name)
+            self.logger.warning(
+                'setUserRank: user %s not in userlist yet', user_name)
 
     def _on_setAFK(self, _, data):
         # Check if user exists before updating AFK status
@@ -251,7 +258,8 @@ class Bot:
         if user_name in self.channel.userlist:
             self.channel.userlist[user_name].afk = data['afk']
         else:
-            self.logger.warning('setAFK: user %s not in userlist yet', user_name)
+            self.logger.warning(
+                'setAFK: user %s not in userlist yet', user_name)
 
     def _on_setLeader(self, _, data):
         self.channel.userlist.leader = data
@@ -306,8 +314,10 @@ class Bot:
         """Track chat messages in database"""
         if self.db:
             username = data.get('username')
+            msg = data.get('msg', '')
             if username:
-                self.db.user_chat_message(username)
+                # Store message text for recent chat display
+                self.db.user_chat_message(username, msg)
 
     async def get_socket_config(self):
         """Get server URL.
@@ -441,11 +451,203 @@ class Bot:
                 else:
                     raise LoginError(err)
         await self.trigger('login', self)
+    
+    async def _log_user_counts_periodically(self):
+        """Background task to periodically log user counts for graphing
+        
+        Logs user counts every 5 minutes to build historical data
+        """
+        try:
+            while True:
+                await asyncio.sleep(300)  # 5 minutes
+                
+                if self.db and self.channel and self.channel.userlist:
+                    chat_users = len(self.channel.userlist)
+                    connected_users = self.channel.userlist.count or chat_users
+                    
+                    try:
+                        self.db.log_user_count(chat_users, connected_users)
+                        self.logger.debug(
+                            'Logged user counts: %d chat, %d connected',
+                            chat_users, connected_users
+                        )
+                    except Exception as e:
+                        self.logger.error('Failed to log user counts: %s', e)
+        except asyncio.CancelledError:
+            self.logger.debug('User count logging task cancelled')
+    
+    async def _update_current_status_periodically(self):
+        """Background task to update current status for web display
+        
+        Updates every 10 seconds with current bot/channel state
+        """
+        try:
+            while True:
+                await asyncio.sleep(10)  # 10 seconds
+                
+                if self.db and self.channel:
+                    try:
+                        status = {
+                            'bot_name': self.user.name,
+                            'bot_rank': self.user.rank,
+                            'bot_afk': 1 if self.user.afk else 0,
+                            'channel_name': self.channel.name,
+                            'current_chat_users': len(self.channel.userlist),
+                            'current_connected_users': (
+                                self.channel.userlist.count or
+                                len(self.channel.userlist)
+                            ),
+                            'bot_start_time': int(self.start_time),
+                            'bot_connected': 1 if self.socket else 0
+                        }
+                        
+                        # Add playlist info if available
+                        if self.channel.playlist:
+                            status['playlist_items'] = len(
+                                self.channel.playlist.queue)
+                            if self.channel.playlist.current:
+                                status['current_media_title'] = (
+                                    self.channel.playlist.current.title)
+                                status['current_media_duration'] = (
+                                    self.channel.playlist.current.duration)
+                        
+                        self.db.update_current_status(**status)
+                        self.logger.debug('Updated current status')
+                    except Exception as e:
+                        self.logger.error('Failed to update status: %s', e)
+        except asyncio.CancelledError:
+            self.logger.debug('Status update task cancelled')
+
+    async def _process_outbound_messages_periodically(self):
+        """Background task to send outbound messages queued by web UI.
+        
+        Implements gentle retry logic with exponential backoff:
+        - Permanent errors (permission/muted/flood) stop retries immediately
+        - Transient errors (network issues) retry with increasing delays
+        - Max 3 retry attempts before giving up
+        """
+        try:
+            while True:
+                await asyncio.sleep(2)  # Poll every 2 seconds
+
+                if not (self.db and self.socket):
+                    continue
+
+                try:
+                    # Fetch messages ready for sending (respects retry backoff)
+                    messages = self.db.get_unsent_outbound_messages(
+                        limit=20,
+                        max_retries=3
+                    )
+                    
+                    for m in messages:
+                        mid = m['id']
+                        text = m['message']
+                        retry_count = m.get('retry_count', 0)
+                        
+                        try:
+                            await self.chat(text)
+                            self.db.mark_outbound_sent(mid)
+                            
+                            if retry_count > 0:
+                                self.logger.info(
+                                    'Sent outbound id=%s after %d retries',
+                                    mid, retry_count
+                                )
+                            else:
+                                self.logger.info('Sent outbound id=%s', mid)
+                                
+                        except Exception as send_exc:
+                            from .error import (
+                                ChannelPermissionError,
+                                ChannelError
+                            )
+                            
+                            error_msg = str(send_exc)
+                            
+                            # Classify error as permanent or transient
+                            if isinstance(send_exc, (
+                                    ChannelPermissionError,
+                                    ChannelError)):
+                                # Permanent: permissions, muted, flood control
+                                self.db.mark_outbound_failed(
+                                    mid,
+                                    error_msg,
+                                    is_permanent=True
+                                )
+                                self.logger.error(
+                                    'Permanent failure for outbound id=%s: %s',
+                                    mid, error_msg
+                                )
+                            else:
+                                # Transient: network, timeout, etc - will retry
+                                self.db.mark_outbound_failed(
+                                    mid,
+                                    error_msg,
+                                    is_permanent=False
+                                )
+                                self.logger.warning(
+                                    'Transient failure for outbound id=%s '
+                                    '(retry %d): %s',
+                                    mid, retry_count + 1, error_msg
+                                )
+                                
+                except Exception as e:
+                    self.logger.error(
+                        'Error processing outbound messages: %s', e
+                    )
+        except asyncio.CancelledError:
+            self.logger.debug('Outbound processing task cancelled')
+    
+    async def _perform_maintenance_periodically(self):
+        """Background task for periodic database maintenance.
+        
+        Runs once per day (at startup + every 24h) to:
+        - Clean up old records (history, outbound messages, tokens)
+        - VACUUM database to reclaim space
+        - Update query planner statistics
+        """
+        try:
+            while True:
+                # Run immediately on startup, then every 24 hours
+                if self.db:
+                    try:
+                        self.logger.info('Starting database maintenance...')
+                        maintenance_log = self.db.perform_maintenance()
+                        self.logger.info(
+                            'Maintenance complete: %s',
+                            ', '.join(maintenance_log)
+                        )
+                    except Exception as e:
+                        self.logger.error(
+                            'Database maintenance failed: %s', e
+                        )
+                
+                # Wait 24 hours before next maintenance
+                await asyncio.sleep(86400)
+                
+        except asyncio.CancelledError:
+            self.logger.debug('Maintenance task cancelled')
 
     async def run(self):
         """Main loop.
         """
         try:
+            # Start background tasks for logging and status updates
+            if self.db:
+                self._history_task = asyncio.create_task(
+                    self._log_user_counts_periodically()
+                )
+                self._status_task = asyncio.create_task(
+                    self._update_current_status_periodically()
+                )
+                self._outbound_task = asyncio.create_task(
+                    self._process_outbound_messages_periodically()
+                )
+                self._maintenance_task = asyncio.create_task(
+                    self._perform_maintenance_periodically()
+                )
+            
             while True:
                 try:
                     if self.socket is None:
@@ -463,6 +665,35 @@ class Bot:
         except asyncio.CancelledError:
             self.logger.info('cancelled')
         finally:
+            # Cancel background tasks
+            if self._history_task:
+                self._history_task.cancel()
+                try:
+                    await self._history_task
+                except asyncio.CancelledError:
+                    pass
+            
+            if self._status_task:
+                self._status_task.cancel()
+                try:
+                    await self._status_task
+                except asyncio.CancelledError:
+                    pass
+
+            if self._outbound_task:
+                self._outbound_task.cancel()
+                try:
+                    await self._outbound_task
+                except asyncio.CancelledError:
+                    pass
+            
+            if self._maintenance_task:
+                self._maintenance_task.cancel()
+                try:
+                    await self._maintenance_task
+                except asyncio.CancelledError:
+                    pass
+            
             await self.disconnect()
 
     def on(self, event, *handlers):

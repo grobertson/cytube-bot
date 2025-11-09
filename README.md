@@ -34,7 +34,13 @@ cytube-bot/
 │
 ├── common/                # Shared utilities
 │   ├── config.py         # Configuration management
+│   ├── database.py       # SQLite database for stats tracking
 │   └── shell.py          # Interactive REPL shell
+│
+├── web/                   # Web status dashboard
+│   ├── status_server.py  # Flask web server
+│   ├── templates/        # HTML templates
+│   └── README.md         # Web server documentation
 │
 └── requirements.txt       # Python dependencies
 ```
@@ -118,6 +124,29 @@ Then interact with the bot directly:
 >>> bot.channel.playlist.current
 <PlaylistItem ...>
 ```
+
+### Web Status Dashboard
+
+View live statistics and metrics in your browser:
+
+```bash
+# Windows
+run_status_server.bat
+
+# Linux/Mac
+./run_status_server.sh
+```
+
+Then open: http://127.0.0.1:5000
+
+Features:
+- Real-time user count graphs
+- Peak statistics (high water marks)
+- Top chatters leaderboard
+- Historical data (1h/6h/24h/7d views)
+- Auto-refreshing every 30 seconds
+
+See [web/README.md](web/README.md) for detailed documentation.
 
 ## 🤖 Creating Your Own Bot
 
@@ -255,6 +284,30 @@ playlist.get(uid)         # Get item by UID
 
 ## 🔮 Future Development
 
+### Implemented Features
+
+1. **Web Status Dashboard** ✅
+   - Live statistics and metrics display
+   - Interactive graphs of user activity over time
+   - Historical data tracking (up to 7 days)
+   - Top chatters leaderboard
+   - Auto-refreshing every 30 seconds
+   - JSON API for external integrations
+   - See [web/README.md](web/README.md) for details
+
+2. **Database Integration** ✅
+   - SQLite for persistence and statistics
+   - User tracking (messages, connection time)
+   - High water marks (peak users)
+   - Historical user count logging
+   - PM command logging
+
+3. **PM Command Interface** ✅
+   - Control bot via private messages
+   - Rank-based access control (moderator+)
+   - Full shell command support via PM
+   - See [PM_GUIDE.md](PM_GUIDE.md) for details
+
 ### Planned Features
 
 1. **LLM Chat Integration**
@@ -272,8 +325,6 @@ playlist.get(uid)         # Get item by UID
 
 3. **Enhanced Bot Capabilities**
    - Plugin system for easy extensibility
-   - Web dashboard for monitoring
-   - Database integration for persistence
    - Multi-channel support
 
 4. **AI-Powered Features**

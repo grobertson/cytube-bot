@@ -2,6 +2,9 @@
 websockets>=12.0
 requests>=2.32.3
 
+# Web status server
+Flask>=3.0.0
+
 # Optional dependencies
 PySocks>=1.7.1  # For proxy support
 
