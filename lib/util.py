@@ -59,26 +59,26 @@ class MessageParser(HTMLParser):
 
     def get_tag_markup(self, tag, attr):
         """Get markup delimiters for a given HTML tag and attributes
-        
+
         Args:
             tag: HTML tag name (e.g., 'strong', 'em')
             attr: List of (name, value) tuples for tag attributes
-            
+
         Returns:
             Tuple of (start_markup, end_markup) or None if no match
         """
         if self.markup is None:
             return None
-        
+
         # Convert attribute list to dict for easier lookup
         attr = dict(attr)
-        
+
         # Search for matching markup definition
         for tag_, attr_, start, end in self.markup:
             # Check if tag matches (None means any tag)
             if tag_ is not None and tag_ != tag:
                 continue
-            
+
             # Check if attributes match (None means any attributes)
             if attr_ is not None:
                 match = True
@@ -88,13 +88,13 @@ class MessageParser(HTMLParser):
                         break
                 if not match:
                     continue
-            
+
             # Found a match
             return start, end
 
     def handle_starttag(self, tag, attr):
         """Handle opening HTML tags by converting to markup syntax
-        
+
         Args:
             tag: HTML tag name
             attr: List of (name, value) tuples for attributes
@@ -116,7 +116,7 @@ class MessageParser(HTMLParser):
 
     def handle_endtag(self, tag):
         """Handle closing HTML tags by adding closing markup
-        
+
         Args:
             tag: HTML tag name
         """
@@ -129,7 +129,7 @@ class MessageParser(HTMLParser):
 
     def handle_data(self, data):
         """Handle text data between HTML tags
-        
+
         Args:
             data: Text content
         """
@@ -152,7 +152,7 @@ class MessageParser(HTMLParser):
         # Reset parser state
         self.message = ''
         self.tags = []
-        
+
         # Parse the HTML
         self.feed(msg)
         self.close()
@@ -215,11 +215,11 @@ async def get(url):
 
 def ip_hash(string, length):
     """Generate a hash for IP cloaking
-    
+
     Args:
         string: String to hash
         length: Length of resulting hash
-        
+
     Returns:
         Base64-encoded MD5 hash truncated to length
     """
@@ -250,23 +250,23 @@ def cloak_ip(ip, start=0):
     """
     parts = ip.split('.')
     acc = ''  # Accumulator for building hash input
-    
+
     # Hash each part starting from 'start' index
     for i, part in islice(enumerate(parts), start, None):
         # Replace part with hash based on accumulated previous parts
         parts[i] = ip_hash('%s%s%s' % (acc, part, i), 3)
         acc += part  # Add current part to accumulator
-    
+
     # Pad with asterisks if less than 4 parts
     while len(parts) < 4:
         parts.append('*')
-    
+
     return '.'.join(parts)
 
 
 def _uncloak_ip(cloaked_parts, uncloaked_parts, acc, i, ret):
     """Recursive helper to brute-force uncloak IP addresses
-    
+
     Args:
         cloaked_parts: List of cloaked IP parts (hashes or plain)
         uncloaked_parts: Working list being built with uncloaked parts
@@ -278,7 +278,7 @@ def _uncloak_ip(cloaked_parts, uncloaked_parts, acc, i, ret):
     if i > 3:
         ret.append('.'.join(uncloaked_parts))
         return
-    
+
     # Try all possible values (0-255) for this octet
     for part in range(256):
         part_hash = ip_hash('%s%s%s' % (acc, part, i), 3)
@@ -320,7 +320,7 @@ def uncloak_ip(ip, start=0):
     ['127.0.0.1']
     """
     parts = ip.split('.')
-    
+
     # Auto-detect start index if None
     if start is None:
         for start, part in enumerate(parts):
@@ -332,7 +332,7 @@ def uncloak_ip(ip, start=0):
             except ValueError:
                 # Not an integer, cloaking starts here
                 break
-    
+
     # Brute-force uncloak by trying all possible values
     ret = []
     _uncloak_ip(parts, list(parts), '', start, ret)

@@ -227,11 +227,11 @@ class SocketIO:
         `ConnectionClosed`
         """
         if self.error is not None:
-            raise self.error # pylint:disable=raising-bad-type
+            raise self.error  # pylint:disable=raising-bad-type
         ev = await self.events.get()
         self.events.task_done()
         if ev is None:
-            raise self.error # pylint:disable=raising-bad-type
+            raise self.error  # pylint:disable=raising-bad-type
         return ev
 
     async def emit(self, event, data, match_response=None, response_timeout=None):
@@ -259,7 +259,7 @@ class SocketIO:
         `SocketIOError`
         """
         if self.error is not None:
-            raise self.error # pylint:disable=raising-bad-type
+            raise self.error  # pylint:disable=raising-bad-type
         data = '42%s' % json.dumps((event, data))
         self.logger.info('emit %s', data)
         release = False
@@ -317,7 +317,7 @@ class SocketIO:
             if release:
                 self.response_lock.release()
 
-    
+
     async def _ping(self):
         """Ping task."""
         try:

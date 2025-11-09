@@ -105,7 +105,7 @@ async def run_bot():
     bot.on("chatMsg", log)  # Log public chat messages
     bot.on("pm", log)  # Log private messages
     bot.on("setCurrent", log_m)  # Log media changes
-    
+
     # Register PM command handler for moderators (if shell is enabled)
     if shell.bot is not None:
         bot.on("pm", shell.handle_pm_command)  # Handle mod commands via PM

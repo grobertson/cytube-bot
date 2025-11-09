@@ -30,13 +30,13 @@ def configure_logger(logger,
                      log_format=None,
                      log_level=logging.INFO):
     """Configure a logger with a file or stream handler
-    
+
     Args:
         logger: Logger instance or logger name string
         log_file: File path string or file-like object (None for stderr)
         log_format: Format string for log messages
         log_level: Logging level (e.g., logging.INFO, logging.DEBUG)
-        
+
     Returns:
         Configured logger instance
     """
@@ -70,7 +70,7 @@ def configure_logger(logger,
 
 def configure_proxy(conf):
     """Configure SOCKS proxy from config dictionary
-    
+
     Args:
         conf: Configuration dictionary containing optional 'proxy' key
               Format: "host:port" or just "host" (default port 1080)
@@ -78,7 +78,7 @@ def configure_proxy(conf):
     proxy = conf.get('proxy', None)
     if not proxy:
         return
-    
+
     # Parse proxy address - split on last colon
     proxy = proxy.rsplit(':', 1)
     if len(proxy) == 1:
@@ -87,19 +87,19 @@ def configure_proxy(conf):
     else:
         # Port was specified
         addr, port = proxy[0], int(proxy[1])
-    
+
     # Set the global proxy configuration
     set_proxy(addr, port)
 
 
 def get_config():
     """Load and parse configuration from JSON file specified in command line
-    
+
     Returns:
         Tuple of (conf, kwargs) where:
             conf: Full configuration dictionary from JSON file
             kwargs: Bot initialization parameters extracted from config
-            
+
     Exits:
         Exits with status 1 if incorrect number of arguments
     """
@@ -115,7 +115,7 @@ def get_config():
     # Extract connection retry settings
     retry = conf.get('retry', 0)  # Number of connection retries
     retry_delay = conf.get('retry_delay', 1)  # Seconds between retries
-    
+
     # Parse log level from string to logging constant
     log_level = getattr(logging, conf.get('log_level', 'info').upper())
 

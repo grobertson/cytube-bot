@@ -144,7 +144,7 @@ class MarkovBot(Bot):
             return
         msg = data['normalized_msg']
         self.logger.info('reply %r %s', msg, data)
-        
+
         if self.markov:
             generated = self.markov.make_sentence(max_overlap_ratio=0.7, tries=100)
             if generated:
@@ -153,7 +153,7 @@ class MarkovBot(Bot):
                 msg = "I don't have enough data to generate a response."
         else:
             msg = "I need to learn some text first."
-            
+
         await self._reply(ev, data['username'], msg)
 
     async def learn(self, _, data):
@@ -280,14 +280,14 @@ class MarkovBot(Bot):
                     generated = self.markov.make_sentence(tries=100)
             else:
                 generated = self.markov.make_sentence(tries=100)
-            
+
             if generated:
                 msg = generated[:self.max_length]
             else:
                 msg = "I couldn't generate a response."
         else:
             msg = "I need to learn some text first."
-            
+
         await self.chat('%s: %s' % (data['username'], msg))
 
     async def cmd_markov(self, data):
@@ -302,7 +302,7 @@ async def run_bot():
     conf, kwargs = get_config()
     chat_logger = logging.getLogger('chat')
     media_logger = logging.getLogger('media')
-    
+
     configure_logger(
         chat_logger,
         log_file=conf.get('chat_log_file', None),
@@ -315,7 +315,7 @@ async def run_bot():
         log_format='[%(asctime).19s] %(message)s',
         log_level=logging.INFO
     )
-    
+
     bot = MarkovBot(
         conf['markov'], chat_logger, media_logger,
         order=conf.get('order', None),
