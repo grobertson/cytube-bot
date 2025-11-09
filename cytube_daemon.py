@@ -225,7 +225,7 @@ class CyTubeDaemon:
             sys.exit(1)
             
         # Decouple from parent environment
-        os.chdir('/')
+        # os.chdir('/')  # Removed to avoid issues with relative paths and cross-platform compatibility
         os.setsid()
         os.umask(0)
         
