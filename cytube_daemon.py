@@ -109,14 +109,14 @@ class CyTubeDaemon:
             self.remove_pid()
             return False
             
-    def start_web_server(self, db, bot, host='0.0.0.0', port=5000):
+    def start_web_server(self, db_path, host='0.0.0.0', port=5000):
         """Start Flask web server in background thread."""
         def run_server():
             try:
                 self.logger.info(
                     f'Starting web server on {host}:{port}'
                 )
-                app = create_app(db, bot)
+                app = create_app(db_path)
                 app.run(host=host, port=port, debug=False, use_reloader=False)
             except Exception as e:
                 self.logger.error(f'Web server error: {e}')
