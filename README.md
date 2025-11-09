@@ -148,6 +148,55 @@ Features:
 
 See [web/README.md](web/README.md) for detailed documentation.
 
+## 🚀 Production Deployment
+
+For production environments, use systemd services to run the bot and web server:
+
+### Linux (systemd)
+
+```bash
+# Copy service files
+sudo cp systemd/*.service /etc/systemd/system/
+
+# Create log directory
+sudo mkdir -p /var/log/cytube-bot
+sudo chown youruser:youruser /var/log/cytube-bot
+
+# Edit service files to match your setup
+sudo nano /etc/systemd/system/cytube-bot.service
+sudo nano /etc/systemd/system/cytube-web.service
+
+# Enable and start services
+sudo systemctl daemon-reload
+sudo systemctl enable cytube-bot cytube-web
+sudo systemctl start cytube-bot cytube-web
+
+# Check status
+sudo systemctl status cytube-bot
+sudo systemctl status cytube-web
+```
+
+See [systemd/README.md](systemd/README.md) for complete documentation.
+
+### Windows
+
+Use Windows Task Scheduler or NSSM (Non-Sucking Service Manager):
+
+**Task Scheduler:**
+1. Create a basic task for the bot
+2. Create another task for the web server
+3. Set both to run at startup
+4. Use `pythonw.exe` to run without console window
+
+**NSSM (recommended):**
+```cmd
+# Download from https://nssm.cc/
+nssm install CyTubeBot "C:\Python\python.exe" "H:\bots\echo\bot.py" "config.json"
+nssm install CyTubeWeb "C:\Python\python.exe" "H:\cytube-bot\web\status_server.py"
+nssm start CyTubeBot
+nssm start CyTubeWeb
+```
+
 ## 🤖 Creating Your Own Bot
 
 Create a new directory under `bots/` and subclass the `Bot` class:
