@@ -1,0 +1,16 @@
+[Unit]
+Description=CyTube Bot
+After=network.target
+
+[Service]
+Type=simple
+User=botuser
+WorkingDirectory=/home/botuser/cytube-bot
+ExecStart=/usr/bin/python3 -m lib.bot
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/var/log/cytube-bot/bot.log
+StandardError=append:/var/log/cytube-bot/bot.log
+
+[Install]
+WantedBy=multi-user.target

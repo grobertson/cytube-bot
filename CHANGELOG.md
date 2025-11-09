@@ -2,90 +2,52 @@
 
 ## [1.1.0] - 2025-11-09
 
-### Major Features - Unified Daemon System
+### Added - System Service Support
 
-This release introduces a complete daemon management system for running the bot and web server as a single unified process.
+This release adds proper systemd service files for running the bot and web server as system services on Linux.
 
-#### Added
+#### Systemd Service Files
 
-- **Unified Daemon Controller** (`cytube_daemon.py`)
-  - Single Python script to manage bot + web server together
-  - Commands: start, stop, restart, status, foreground
-  - Cross-platform support (Windows, Linux, macOS)
-  - PID file management for reliable process tracking
-  - Graceful shutdown handling (SIGTERM/SIGINT)
-  - Configurable PID and log file paths
+- **Bot Service** (`systemd/cytube-bot.service`)
+  - Runs the CyTube bot as a system service
+  - Automatic restart on failure
+  - Logging to `/var/log/cytube-bot/bot.log`
+  - Starts after network is available
 
-- **Process Management**
-  - Background daemonization (Unix double-fork method)
-  - Windows compatibility (works with pythonw.exe or Task Scheduler)
-  - Process status checking
-  - Stale PID file cleanup
-  - Multiple instance support with separate PID files
+- **Web Server Service** (`systemd/cytube-web.service`)
+  - Runs the web status dashboard as a system service
+  - Depends on bot service
+  - Automatic restart on failure
+  - Logging to `/var/log/cytube-bot/web.log`
+  - Configurable host/port binding
 
-- **Logging System**
-  - Automatic log file creation
-  - Dual-mode logging:
-    - Daemon mode: File only
-    - Foreground mode: Console + file
-  - Unified logs for bot and web server
-  - Configurable log file path
-  - Ready for log rotation integration
-
-- **Helper Scripts**
-  - `cytube_daemon.bat` - Windows batch wrapper
-  - `cytube_daemon.sh` - Unix shell script wrapper
-  - Simple command syntax for quick operations
-
-- **Complete Documentation**
-  - New `DAEMON_GUIDE.md` with comprehensive instructions:
-    - Quick start examples
-    - Platform-specific notes (Unix vs Windows)
-    - System integration (systemd, Windows Service, Docker)
-    - Multiple instance configuration
-    - Security best practices
-    - Troubleshooting guide
-    - Migration guide from old separate-process setup
-
-#### Changed
-
-- Bot and web server can now be started with single command
-- No need to run bot.py and status_server.py separately anymore
-- Web server now runs in background thread (non-blocking)
-- Configuration supports new optional keys:
-  - `web_host`: Web server bind address (default: 0.0.0.0)
-  - `web_port`: Web server port (default: 5000)
+- **Documentation** (`systemd/README.md`)
+  - Complete installation instructions
+  - Service management commands
+  - Log viewing and troubleshooting
 
 #### Benefits
 
-- **Simplified Deployment**: One command to start everything
-- **Better Process Management**: PID tracking, status checks, clean restarts
-- **Production Ready**: Proper daemonization for server environments
-- **Development Friendly**: Foreground mode for debugging
-- **System Integration**: Easy setup with systemd, Windows Services, Docker
-- **Multi-Instance**: Run multiple bots on same machine easily
+- **Production Ready**: Proper service management with systemd
+- **Automatic Restart**: Services restart on failure
+- **Boot Integration**: Can enable services to start on boot
+- **Centralized Logging**: Logs stored in `/var/log/` with journald integration
+- **Dependency Management**: Web server automatically starts after bot
+- **Security**: Run as non-root user
+- **Simple Management**: Standard systemctl commands
 
-#### Migration from v1.0.x
+#### Installation
 
-**Old way (two separate processes):**
 ```bash
-# Terminal 1
-python bot.py config.json
-
-# Terminal 2  
-python web/status_server.py config.json
+sudo cp systemd/*.service /etc/systemd/system/
+sudo mkdir -p /var/log/cytube-bot
+sudo chown botuser:botuser /var/log/cytube-bot
+sudo systemctl daemon-reload
+sudo systemctl enable cytube-bot cytube-web
+sudo systemctl start cytube-bot cytube-web
 ```
 
-**New way (unified daemon):**
-```bash
-# Development
-python3 cytube_daemon.py foreground config.json
-
-# Production
-python3 cytube_daemon.py start config.json
-```
-
-No configuration changes required! Uses existing `config.json`.
+See `systemd/README.md` for complete documentation.
 
 ---
 
