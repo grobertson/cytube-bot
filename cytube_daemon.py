@@ -15,7 +15,6 @@ import argparse
 import logging
 import asyncio
 import threading
-import subprocess
 from pathlib import Path
 
 # Add project root to path
