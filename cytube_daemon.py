@@ -23,7 +23,7 @@ sys.path.insert(0, str(project_root))
 
 from lib.bot import Bot  # noqa: E402
 from common.config import get_config  # noqa: E402
-from common.database import Database  # noqa: E402
+from common.database import BotDatabase  # noqa: E402
 from web.status_server import create_app  # noqa: E402
 
 
