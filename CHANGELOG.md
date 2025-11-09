@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.0.1] - 2025-11-09
+
+### Bug Fixes
+
+This patch release fixes critical issues discovered immediately after the 1.0.0 release.
+
+#### Fixed
+
+- **Outbound Message Processing**
+  - Messages queued via web interface were never being sent
+  - Added check for `self.channel.permissions` to ensure bot is fully connected before sending
+  - Added comprehensive debug logging to track connection state:
+    - Logs when waiting for socket connection
+    - Logs when waiting for channel permissions to load
+    - Logs number of queued messages being processed
+  - Split connection checks into separate conditions for better diagnostics
+  - Messages now send reliably once bot is connected to channel
+
+- **Web UI Improvements**
+  - Fixed HTML entity display issue (characters like `>`, `<`, `&` showing as `&gt;`, `&lt;`, `&amp;`)
+  - Changed chat rendering from `innerHTML` to `textContent` to prevent double-encoding
+  - Chat messages now display special characters correctly while maintaining XSS protection
+
+- **Token Modal UX**
+  - Redesigned modal with fixed header and close button at top right
+  - Close button (✕) now always visible, no longer requires scrolling
+  - Modal content area scrolls independently below header
+  - Uses flexbox layout with `max-height:90vh` for better space management
+  - Much more user-friendly on all screen sizes
+
+- **Chat Input Layout**
+  - Moved message input controls below chat display (standard IRC/chat client pattern)
+  - Layout now follows familiar Discord/Slack/IRC convention:
+    1. Chat display area (scrolling messages)
+    2. Input controls (send box, buttons, options)
+    3. Outbound status section (collapsible)
+
+#### Changed
+
+- Outbound message processor now validates full bot connection state before attempting sends
+- Improved error logging with more granular connection state information
+
+---
+
 ## [1.0.0] - 2025-11-09
 
 ### Security & Reliability Hardening

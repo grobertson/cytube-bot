@@ -530,7 +530,19 @@ class Bot:
             while True:
                 await asyncio.sleep(2)  # Poll every 2 seconds
 
-                if not (self.db and self.socket):
+                # Check if bot is connected and ready
+                if not self.db:
+                    continue
+                if not self.socket:
+                    self.logger.debug(
+                        'Outbound processor waiting for socket connection'
+                    )
+                    continue
+                if not self.channel.permissions:
+                    self.logger.debug(
+                        'Outbound processor waiting for channel '
+                        'permissions to load'
+                    )
                     continue
 
                 try:
@@ -539,6 +551,12 @@ class Bot:
                         limit=20,
                         max_retries=3
                     )
+                    
+                    if messages:
+                        self.logger.debug(
+                            'Processing %d queued outbound message(s)',
+                            len(messages)
+                        )
                     
                     for m in messages:
                         mid = m['id']
