@@ -92,6 +92,7 @@ class CyTubeDaemon:
             os.remove(self.pid_file)
             self.logger.info(f'Removed PID file {self.pid_file}')
         except FileNotFoundError:
+            # It's safe to ignore if the PID file does not exist
             pass
             
     def is_running(self):
