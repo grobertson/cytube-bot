@@ -1,6 +1,16 @@
 # Changelog
 
-## [1.1.0] - 2025-11-09
+## [1.1.2] - 2025-11-09
+
+### Changed - Separated Services Approach
+
+**Reverted unified daemon system** due to asyncio event loop conflicts when running Flask and the bot together.
+
+Instead of a single process, v1.1.2 provides **separate systemd services**:
+- Bot runs independently with its own event loop
+- Web server runs independently with its own event loop
+- No asyncio conflicts or RuntimeError exceptions
+- Better fault isolation - if one crashes, the other keeps running
 
 ### Added - System Service Support
 
