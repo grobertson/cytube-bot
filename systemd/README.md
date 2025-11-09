@@ -24,7 +24,11 @@ This directory contains systemd service files for running the CyTube bot and web
    - Change `User` to your username
    - Update `WorkingDirectory` to your bot installation path
    - Modify paths to Python interpreter if needed
-   - Update config file path in bot service
+   - **Update bot script and config file paths in `cytube-bot.service`**:
+     ```
+     ExecStart=/usr/bin/python3 bots/YOUR_BOT/bot.py bots/YOUR_BOT/config.json
+     ```
+   - Update web server options in `cytube-web.service` if needed
 
 4. **Reload systemd:**
    ```bash

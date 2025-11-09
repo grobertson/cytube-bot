@@ -6,11 +6,14 @@ After=network.target
 Type=simple
 User=botuser
 WorkingDirectory=/home/botuser/cytube-bot
-ExecStart=/usr/bin/python3 -m lib.bot
+ExecStart=/usr/bin/python3 bots/echo/bot.py bots/echo/config.json
 Restart=on-failure
 RestartSec=10
 StandardOutput=append:/var/log/cytube-bot/bot.log
 StandardError=append:/var/log/cytube-bot/bot.log
+
+# Note: Update ExecStart to point to your bot script and config file
+# Example for log bot: /usr/bin/python3 bots/log/bot.py bots/log/config.json
 
 [Install]
 WantedBy=multi-user.target
