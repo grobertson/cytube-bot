@@ -179,7 +179,7 @@ class CyTubeDaemon:
             
             # Create bot
             self.logger.info('Initializing bot')
-            self.bot = Bot(config, database=db)
+            self.bot = Bot(config, db)
             
             # Start web server
             self.start_web_server(db, self.bot, web_host, web_port)
