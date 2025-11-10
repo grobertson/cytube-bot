@@ -132,6 +132,7 @@ class TUIBot(Bot):
         self.status_message = 'Connecting...'
         self.session_start = datetime.now()
         self.current_media_title = None  # Cache current media title for display
+        self.pending_media_uid = None  # Store UID if setCurrent happens before queue
         
         # Terminal size tracking (for Windows resize detection)
         self.last_terminal_size = (self.term.width, self.term.height)
@@ -155,6 +156,8 @@ class TUIBot(Bot):
         self.on('addUser', self.handle_user_join)
         self.on('userLeave', self.handle_user_leave)
         self.on('setCurrent', self.handle_media_change)
+        self.on('queue', self.handle_queue)
+        self.on('playlist', self.handle_playlist)
         self.on('login', self.handle_login)
 
     def _on_setCurrent(self, _, data):
@@ -168,8 +171,11 @@ class TUIBot(Bot):
             # Call the parent class handler
             super()._on_setCurrent(_, data)
         except ValueError as e:
-            # UID not in playlist queue yet - log and continue
+            # UID not in playlist queue yet - save it for later
             self.logger.warning('setCurrent: Item not in queue yet: %s', e)
+            # Store the UID so we can retry when the playlist is populated
+            if isinstance(data, int):
+                self.pending_media_uid = data
             # Set current to None so we don't have stale data
             self.channel.playlist._current = None
 
@@ -455,6 +461,42 @@ class TUIBot(Bot):
             self.current_media_title = str(title)
             self.add_system_message(f'Now playing: {title}', color='bright_blue')
             self.render_top_status()
+
+    async def handle_queue(self, _, data):
+        """Handle queue event when an item is added to the playlist.
+        
+        If we have a pending media UID that failed to set because it wasn't
+        in the queue yet, retry setting it now.
+        """
+        if self.pending_media_uid:
+            try:
+                item = self.channel.playlist.get(self.pending_media_uid)
+                if item:
+                    self.channel.playlist._current = item
+                    self.current_media_title = str(item.title)
+                    self.add_system_message(f'Now playing: {item.title}', color='bright_blue')
+                    self.render_top_status()
+                    self.pending_media_uid = None
+            except (ValueError, AttributeError):
+                pass
+
+    async def handle_playlist(self, _, data):
+        """Handle playlist event when the full playlist is sent.
+        
+        If we have a pending media UID that failed to set because it wasn't
+        in the queue yet, retry setting it now that we have the full playlist.
+        """
+        if self.pending_media_uid:
+            try:
+                item = self.channel.playlist.get(self.pending_media_uid)
+                if item:
+                    self.channel.playlist._current = item
+                    self.current_media_title = str(item.title)
+                    self.add_system_message(f'Now playing: {item.title}', color='bright_blue')
+                    self.render_top_status()
+                    self.pending_media_uid = None
+            except (ValueError, AttributeError):
+                pass
 
     async def handle_login(self, _, data):
         """Handle successful login.
