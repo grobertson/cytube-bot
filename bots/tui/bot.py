@@ -425,12 +425,35 @@ class TUIBot(Bot):
             _ (str): Event name (unused)
             data (dict): Media data from CyTube (can be uid or PlaylistItem)
         """
-        # Validate that playlist and current item exist before accessing
+        # If data is a PlaylistItem object, use it directly
+        from lib.playlist import PlaylistItem
+        if isinstance(data, PlaylistItem):
+            title = data.title
+            self.current_media_title = str(title)
+            self.add_system_message(f'Now playing: {title}', color='bright_blue')
+            self.render_top_status()
+            return
+        
+        # If data is a UID, try to look it up in the playlist
+        if isinstance(data, int):
+            try:
+                if self.channel and self.channel.playlist:
+                    item = self.channel.playlist.get(data)
+                    if item:
+                        title = item.title
+                        self.current_media_title = str(title)
+                        self.add_system_message(f'Now playing: {title}', color='bright_blue')
+                        self.render_top_status()
+                        return
+            except (ValueError, AttributeError):
+                # Item not in queue yet, will be updated when playlist populates
+                pass
+        
+        # Fallback: check if playlist.current was set successfully
         if self.channel and self.channel.playlist and self.channel.playlist.current:
             title = self.channel.playlist.current.title
-            self.current_media_title = str(title)  # Cache for status bar display
+            self.current_media_title = str(title)
             self.add_system_message(f'Now playing: {title}', color='bright_blue')
-            # Force update the top status bar to show new media
             self.render_top_status()
 
     async def handle_login(self, _, data):
