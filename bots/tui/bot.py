@@ -471,16 +471,25 @@ class TUIBot(Bot):
             else:
                 parts.append("📺 Connecting...")
             
+            # Clock
+            current_time = datetime.now().strftime('%H:%M')
+            parts.append(f"🕐 {current_time}")
+            
             # Current media - "Now Playing: <title>"
-            if self.channel and self.channel.playlist and self.channel.playlist.current:
-                media = self.channel.playlist.current
-                title = media.title[:50] + '...' if len(media.title) > 50 else media.title
-                parts.append(f"▶ Now Playing: {title}")
+            if self.channel and hasattr(self.channel, 'playlist') and self.channel.playlist:
+                if hasattr(self.channel.playlist, 'current') and self.channel.playlist.current:
+                    media = self.channel.playlist.current
+                    if hasattr(media, 'title'):
+                        title = media.title[:50] + '...' if len(media.title) > 50 else media.title
+                        parts.append(f"▶ Now Playing: {title}")
             
             # Join status line with separator
             status_line = "  │  ".join(parts)
-            # Pad to full width
-            status_line = status_line + ' ' * (self.term.width - len(status_line))
+            # Pad to full width with spaces
+            if len(status_line) < self.term.width:
+                status_line = status_line + ' ' * (self.term.width - len(status_line))
+            else:
+                status_line = status_line[:self.term.width]
             
             # Apply theme colors
             color_func = getattr(self.term, f'{text_color}_on_{bg_color}', self.term.black_on_cyan)
@@ -499,13 +508,13 @@ class TUIBot(Bot):
             left_parts = []
             
             # Viewer count vs chat users
-            if self.channel and self.channel.userlist:
+            if self.channel and hasattr(self.channel, 'userlist') and self.channel.userlist:
                 chat_users = len(self.channel.userlist)
                 total_viewers = self.channel.userlist.count if hasattr(self.channel.userlist, 'count') else chat_users
                 left_parts.append(f"👥 {chat_users}/{total_viewers}")
             
             # 24h high water mark (if available from database)
-            if self.db:
+            if hasattr(self, 'db') and self.db:
                 try:
                     high_water = self.db.get_high_water_mark()
                     if high_water:
@@ -514,29 +523,30 @@ class TUIBot(Bot):
                     pass
             
             # Media runtime and remaining
-            if self.channel and self.channel.playlist and self.channel.playlist.current:
-                media = self.channel.playlist.current
-                if hasattr(media, 'duration') and media.duration:
-                    # Total runtime
-                    total_mins, total_secs = divmod(media.duration, 60)
-                    if total_mins >= 60:
-                        total_hours = total_mins // 60
-                        total_mins = total_mins % 60
-                        left_parts.append(f"⏱ Runtime: {total_hours}h {total_mins}m")
-                    else:
-                        left_parts.append(f"⏱ Runtime: {total_mins}m {total_secs}s")
-                    
-                    # Time remaining (if we have current time)
-                    if hasattr(media, 'seconds') and media.seconds is not None:
-                        remaining = media.duration - media.seconds
-                        if remaining > 0:
-                            rem_mins, rem_secs = divmod(int(remaining), 60)
-                            if rem_mins >= 60:
-                                rem_hours = rem_mins // 60
-                                rem_mins = rem_mins % 60
-                                left_parts.append(f"⏳ Remaining: {rem_hours}h {rem_mins}m")
-                            else:
-                                left_parts.append(f"⏳ Remaining: {rem_mins}m {rem_secs}s")
+            if self.channel and hasattr(self.channel, 'playlist') and self.channel.playlist:
+                if hasattr(self.channel.playlist, 'current') and self.channel.playlist.current:
+                    media = self.channel.playlist.current
+                    if hasattr(media, 'duration') and media.duration:
+                        # Total runtime
+                        total_mins, total_secs = divmod(media.duration, 60)
+                        if total_mins >= 60:
+                            total_hours = total_mins // 60
+                            total_mins = total_mins % 60
+                            left_parts.append(f"⏱  Runtime: {total_hours}h {total_mins}m")
+                        else:
+                            left_parts.append(f"⏱  Runtime: {total_mins}m {total_secs}s")
+                        
+                        # Time remaining (if we have current time)
+                        if hasattr(media, 'seconds') and media.seconds is not None:
+                            remaining = media.duration - media.seconds
+                            if remaining > 0:
+                                rem_mins, rem_secs = divmod(int(remaining), 60)
+                                if rem_mins >= 60:
+                                    rem_hours = rem_mins // 60
+                                    rem_mins = rem_mins % 60
+                                    left_parts.append(f"⏳ Remaining: {rem_hours}h {rem_mins}m")
+                                else:
+                                    left_parts.append(f"⏳ Remaining: {rem_mins}m {rem_secs}s")
             
             # Right side parts (will be right-justified)
             right_parts = []
@@ -551,21 +561,36 @@ class TUIBot(Bot):
                 right_parts.append(f"⏱  Session: {minutes}m {seconds}s")
             
             # My username
-            if self.user and self.user.name:
+            if self.user and hasattr(self.user, 'name') and self.user.name:
                 right_parts.append(f"👤 {self.user.name}")
             
             # Build the status line
-            left_text = "  │  ".join(left_parts)
-            right_text = "  │  ".join(right_parts)
+            left_text = "  │  ".join(left_parts) if left_parts else ""
+            right_text = "  │  ".join(right_parts) if right_parts else ""
             
-            # Calculate spacing
-            available_width = self.term.width - len(left_text) - len(right_text)
-            if available_width < 3:
+            # Calculate the actual display widths (accounting for emojis being wider)
+            # Emojis can take 2 display columns, so we need to be careful
+            left_display_len = len(left_text)
+            right_display_len = len(right_text)
+            
+            # Calculate spacing - leave a few chars buffer for safety
+            available_width = self.term.width - left_display_len - right_display_len - 3
+            
+            if available_width < 1:
                 # Not enough space, just show left side
-                status_line = left_text + ' ' * (self.term.width - len(left_text))
+                status_line = left_text
+                if len(status_line) < self.term.width:
+                    status_line = status_line + ' ' * (self.term.width - len(status_line))
+                else:
+                    status_line = status_line[:self.term.width]
             else:
                 # Add spacing between left and right
                 status_line = left_text + ' ' * available_width + right_text
+                # Ensure we fill exactly to width
+                if len(status_line) < self.term.width:
+                    status_line = status_line + ' ' * (self.term.width - len(status_line))
+                elif len(status_line) > self.term.width:
+                    status_line = status_line[:self.term.width]
             
             # Apply theme colors
             color_func = getattr(self.term, f'{text_color}_on_{bg_color}', self.term.black_on_cyan)
