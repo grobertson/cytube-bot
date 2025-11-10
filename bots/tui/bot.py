@@ -471,26 +471,11 @@ class TUIBot(Bot):
             else:
                 parts.append("Connecting...")
             
-            # Current time
-            current_time = datetime.now().strftime('%H:%M:%S')
-            parts.append(f"🕐 {current_time}")
-            
-            # Session duration
-            session_duration = datetime.now() - self.session_start
-            hours, remainder = divmod(int(session_duration.total_seconds()), 3600)
-            minutes, seconds = divmod(remainder, 60)
-            parts.append(f"⏱  {hours:02d}:{minutes:02d}:{seconds:02d}")
-            
-            # Current media
+            # Current media - "Now Playing: <title>"
             if self.channel and self.channel.playlist and self.channel.playlist.current:
                 media = self.channel.playlist.current
-                title = media.title[:30] + '...' if len(media.title) > 30 else media.title
-                # Media duration
-                if hasattr(media, 'duration') and media.duration:
-                    mins, secs = divmod(media.duration, 60)
-                    parts.append(f"🎬 {title} ({mins}:{secs:02d})")
-                else:
-                    parts.append(f"🎬 {title}")
+                title = media.title[:40] + '...' if len(media.title) > 40 else media.title
+                parts.append(f"Now Playing: {title}")
             
             # Join status line with separator
             status_line = "  │  ".join(parts)
@@ -504,7 +489,6 @@ class TUIBot(Bot):
         """Render the bottom status bar with user info and stats."""
         status_y = self.term.height - 2
         user_list_width = 22
-        status_width = self.term.width - user_list_width - 1
         
         with self.term.location(0, status_y):
             # Get theme colors
@@ -516,6 +500,40 @@ class TUIBot(Bot):
             # My username
             if self.user and self.user.name:
                 parts.append(f"👤 {self.user.name}")
+            
+            # Session duration
+            session_duration = datetime.now() - self.session_start
+            hours, remainder = divmod(int(session_duration.total_seconds()), 3600)
+            minutes, seconds = divmod(remainder, 60)
+            if hours > 0:
+                parts.append(f"⏱ Session: {hours}h {minutes}m")
+            else:
+                parts.append(f"⏱ Session: {minutes}m {seconds}s")
+            
+            # Media runtime and remaining
+            if self.channel and self.channel.playlist and self.channel.playlist.current:
+                media = self.channel.playlist.current
+                if hasattr(media, 'duration') and media.duration:
+                    # Total runtime
+                    total_mins, total_secs = divmod(media.duration, 60)
+                    if total_mins >= 60:
+                        total_hours = total_mins // 60
+                        total_mins = total_mins % 60
+                        parts.append(f"Runtime: {total_hours}h {total_mins}m")
+                    else:
+                        parts.append(f"Runtime: {total_mins}m {total_secs}s")
+                    
+                    # Time remaining (if we have current time)
+                    if hasattr(media, 'seconds') and media.seconds is not None:
+                        remaining = media.duration - media.seconds
+                        if remaining > 0:
+                            rem_mins, rem_secs = divmod(int(remaining), 60)
+                            if rem_mins >= 60:
+                                rem_hours = rem_mins // 60
+                                rem_mins = rem_mins % 60
+                                parts.append(f"Remaining: {rem_hours}h {rem_mins}m")
+                            else:
+                                parts.append(f"Remaining: {rem_mins}m {rem_secs}s")
             
             # Viewer count vs chat users
             if self.channel and self.channel.userlist:
@@ -533,7 +551,8 @@ class TUIBot(Bot):
                     pass
             
             status_line = "  │  ".join(parts)
-            status_line = status_line.ljust(status_width)
+            # Make sure status line fills the entire width
+            status_line = status_line.ljust(self.term.width)
             
             # Apply theme colors
             color_func = getattr(self.term, f'{text_color}_on_{bg_color}', self.term.black_on_cyan)
@@ -775,15 +794,14 @@ class TUIBot(Bot):
         """
         with self.term.cbreak(), self.term.hidden_cursor():
             while self.running:
+                current_time = time.time()
+                
                 # Periodic terminal size check on Windows (every 10 seconds)
-                if self.is_windows:
-                    current_time = time.time()
-                    if current_time - self.last_size_check >= self.size_check_interval:
-                        self._check_terminal_size()
-                        self.last_size_check = current_time
+                if self.is_windows and current_time - self.last_size_check >= self.size_check_interval:
+                    self._check_terminal_size()
+                    self.last_size_check = current_time
                 
                 # Periodic status bar update (every second)
-                current_time = time.time()
                 if current_time - self.last_status_update >= self.status_update_interval:
                     self.render_top_status()
                     self.render_bottom_status()
@@ -809,20 +827,17 @@ class TUIBot(Bot):
                         self.tab_completion_matches = []
                         self.render_input()
                 elif key.name == 'KEY_UP':
-                    # Check for Ctrl+Up (scroll)
-                    if hasattr(key, 'code') and key.code in (566, 567):  # Ctrl+Up codes
-                        self.scroll_up()
-                    else:
-                        self.navigate_history_up()
+                    self.navigate_history_up()
                 elif key.name == 'KEY_DOWN':
-                    # Check for Ctrl+Down (scroll)
-                    if hasattr(key, 'code') and key.code in (525, 526):  # Ctrl+Down codes
-                        self.scroll_down()
-                    else:
-                        self.navigate_history_down()
+                    self.navigate_history_down()
                 elif key.name == 'KEY_PGUP':
                     self.scroll_up()
                 elif key.name == 'KEY_PGDOWN':
+                    self.scroll_down()
+                # Ctrl+Up and Ctrl+Down for scrolling
+                elif key == '\x1b[1;5A':  # Ctrl+Up
+                    self.scroll_up()
+                elif key == '\x1b[1;5B':  # Ctrl+Down
                     self.scroll_down()
                 elif key.name == 'KEY_ESCAPE':
                     # Could be used for commands/menus in the future
