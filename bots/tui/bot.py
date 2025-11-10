@@ -103,6 +103,7 @@ class TUIBot(Bot):
         self.tui_config = tui_config or {}
         self.show_join_quit = self.tui_config.get('show_join_quit', True)
         self.clock_format = self.tui_config.get('clock_format', '12h')  # '12h' or '24h'
+        self.hide_afk_users = self.tui_config.get('hide_afk_users', False)  # Hide AFK users from list
         
         # Store config file path for persistence
         self.config_file = args[0] if args else 'config.json'
@@ -384,22 +385,31 @@ class TUIBot(Bot):
         self.theme = new_theme
         self.current_theme_name = theme_name
         
+        # Trigger full screen redraw to update all themed elements
+        self.render_screen()
+        
         # Save to config file
         try:
+            # Use absolute path if relative path was provided
             config_path = Path(self.config_file)
-            with open(config_path, 'r') as f:
+            if not config_path.is_absolute():
+                config_path = config_path.resolve()
+            
+            with open(config_path, 'r', encoding='utf-8') as f:
                 config = json.load(f)
             
             if 'tui' not in config:
                 config['tui'] = {}
             config['tui']['theme'] = theme_name
             
-            with open(config_path, 'w') as f:
+            with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, indent=2)
             
             return True
         except Exception as e:
             self.logger.warning(f'Failed to save theme preference: {e}')
+            # Show inline error message
+            self.add_system_message(f'Failed to save config file: {e}', color='bright_red')
             return False
 
     def _handle_resize(self, signum=None, frame=None):
@@ -736,19 +746,23 @@ class TUIBot(Bot):
             # Calculate spacing to right-justify clock (5 columns from edge)
             left_len = len(left_text)
             right_len = len(right_text)
-            available_space = self.term.width - left_len - right_len - 5
+            # Reserve total space: left + right + 5 spaces on right
+            total_needed = left_len + right_len + 5
             
-            if available_space > 0:
-                status_line = left_text + ' ' * available_space + right_text + ' ' * 5
+            if total_needed <= self.term.width:
+                # Enough space - calculate padding between left and right
+                padding = self.term.width - total_needed
+                status_line = left_text + ' ' * padding + right_text + ' ' * 5
             else:
                 # Not enough space, truncate left side
-                status_line = (left_text[:self.term.width - right_len - 8] + '...') + right_text + ' ' * 5
+                truncated_left = left_text[:self.term.width - right_len - 8] + '...'
+                padding = self.term.width - len(truncated_left) - right_len - 5
+                if padding < 1:
+                    padding = 1
+                status_line = truncated_left + ' ' * padding + right_text + ' ' * 5
             
-            # Ensure exact width
-            if len(status_line) < self.term.width:
-                status_line = status_line + ' ' * (self.term.width - len(status_line))
-            else:
-                status_line = status_line[:self.term.width]
+            # Should be exact width now, but ensure it
+            status_line = status_line[:self.term.width]
             
             # Apply theme colors
             color_func = getattr(self.term, f'{text_color}_on_{bg_color}', self.term.black_on_cyan)
@@ -1000,24 +1014,28 @@ class TUIBot(Bot):
             with self.term.location(user_list_x - 1, i):
                 print(border_func('│'), end='', flush=True)
 
-        # Separate active and AFK users
-        active_users = []
+        # Separate users into three groups: mods (rank >= 2), regular users, and AFK
+        mods = []
+        regular_users = []
         afk_users = []
         
         for user in self.channel.userlist.values():
             if user.afk:
                 afk_users.append(user)
+            elif user.rank >= 2:  # Moderator or higher
+                mods.append(user)
             else:
-                active_users.append(user)
+                regular_users.append(user)
         
-        # Sort active users by rank (descending) then by name
-        active_users.sort(key=lambda u: (-u.rank, u.name.lower()))
-        
-        # Sort AFK users alphabetically only
+        # Sort each group alphabetically by name (case-insensitive)
+        mods.sort(key=lambda u: u.name.lower())
+        regular_users.sort(key=lambda u: u.name.lower())
         afk_users.sort(key=lambda u: u.name.lower())
         
-        # Combine lists: active first, then AFK
-        sorted_users = active_users + afk_users
+        # Combine lists: mods first, then regular users, then AFK (if not hidden)
+        sorted_users = mods + regular_users
+        if not self.hide_afk_users:
+            sorted_users += afk_users
 
         # Get rank colors from theme
         rank_colors = self.theme['colors']['user_ranks']
