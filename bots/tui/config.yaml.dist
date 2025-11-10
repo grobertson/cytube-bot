@@ -8,10 +8,11 @@ domain: https://cytu.be
 channel: 420Grindhouse
 
 # Bot credentials: [username, password]
+
 user:
     - username
     - password
-
+    
 # Socket.IO settings
 response_timeout: 1
 restart_delay: 5
