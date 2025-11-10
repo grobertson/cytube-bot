@@ -11,12 +11,14 @@ A full-featured terminal user interface (TUI) for CyTube chat rooms, inspired by
 - **Full-color support** using the blessed library
 - **Rank-based coloring** - brighter colors for moderators and above
 - **Rank indicators** - visual symbols for moderators, admins, etc.
-- **Status bar** - connection info, channel name, user count
+- **Dual status bars** - top bar shows connection/media info, bottom shows user stats
 - **Smart user list** - grouped by rank (active users), AFK at bottom, with status indicators:
   - `[m]` - Muted user
   - `[s]` - Shadow muted user
   - `[*]` - Channel leader
   - *Italics* - AFK users
+- **Configurable themes** - customize colors and symbols via JSON
+- **Terminal resize support** - dynamic layout adjustment
 
 ### 💬 Chat Features
 
@@ -25,7 +27,7 @@ A full-featured terminal user interface (TUI) for CyTube chat rooms, inspired by
 - **Private messages** - send and receive PMs with visual indicators
 - **Command history** - navigate with up/down arrows
 - **Action messages** - `/me` command support
-- **System notifications** - user joins/leaves, media changes
+- **System notifications** - user joins/leaves, media changes (configurable)
 - **Chat history logging** - All messages saved to timestamped log files
 - **Error logging** - Exceptions and warnings logged for troubleshooting
 
@@ -89,7 +91,11 @@ pip install -r requirements.txt blessed
      "user": ["yourusername", "yourpassword"],
      "response_timeout": 0.1,
      "restart_delay": 5,
-     "log_level": "WARNING"
+     "log_level": "WARNING",
+     "tui": {
+       "theme": "theme.json",
+       "show_join_quit": true
+     }
    }
    ```
 
@@ -101,6 +107,19 @@ pip install -r requirements.txt blessed
    - `response_timeout` - Socket response timeout in seconds
    - `restart_delay` - Delay before reconnecting on error
    - `log_level` - Logging level (WARNING recommended for TUI)
+   - `tui.theme` - Path to theme JSON file (optional, defaults to `theme.json`)
+   - `tui.show_join_quit` - Show join/quit messages (optional, defaults to `true`)
+
+### Themes
+
+Customize the TUI appearance by editing `theme.json`. You can configure:
+- Status bar colors
+- User rank colors (owner, admin, moderator, registered, guest)
+- Message colors (PMs, system messages, mentions)
+- Border and timestamp colors
+- Rank symbols and status markers
+
+See `theme.json` for the full structure.
 
 ## Usage
 
@@ -115,16 +134,17 @@ cd bots/tui
 python bot.py my_config.json
 ```
 
-### Available Commands
+### Commands
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `/help` | Show help information | `/help` |
-| `/pm <user> <msg>` | Send private message | `/pm alice Hello there!` |
-| `/me <action>` | Send action message | `/me waves` |
-| `/clear` | Clear chat history | `/clear` |
-| `/scroll` | Scroll to bottom | `/scroll` |
-| `/quit` | Exit the application | `/quit` |
+| Command | Description |
+|---------|-------------|
+| `/quit` or `/q` | Exit the TUI |
+| `/clear` | Clear chat history |
+| `/help` or `/h` | Show help message |
+| `/togglejoins` | Toggle join/quit message display |
+| Tab | Autocomplete usernames and #emotes |
+| Ctrl+Up/Down | Scroll chat history |
+| Ctrl+C | Exit (forceful) |
 
 ### Tips & Tricks
 

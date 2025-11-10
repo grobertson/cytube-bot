@@ -27,9 +27,11 @@ Keybindings:
 
 import sys
 import os
+import json
+import signal
 from pathlib import Path
 from collections import deque
-from datetime import datetime
+from datetime import datetime, timedelta
 import asyncio
 import logging
 
@@ -81,17 +83,25 @@ class TUIBot(Bot):
         5: '&',      # Founder
     }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, tui_config=None, **kwargs):
         """Initialize the TUI bot.
 
         Args:
             *args: Positional arguments passed to Bot.__init__
+            tui_config (dict): TUI-specific configuration options
             **kwargs: Keyword arguments passed to Bot.__init__
         """
         super().__init__(*args, **kwargs)
 
         # Initialize terminal
         self.term = Terminal()
+
+        # TUI configuration
+        self.tui_config = tui_config or {}
+        self.show_join_quit = self.tui_config.get('show_join_quit', True)
+        
+        # Load theme
+        self.theme = self._load_theme(self.tui_config.get('theme', 'theme.json'))
 
         # Message parsing
         self.msg_parser = MessageParser()
@@ -117,9 +127,13 @@ class TUIBot(Bot):
         # State
         self.running = False
         self.status_message = 'Connecting...'
+        self.session_start = datetime.now()
 
         # Setup logging to file
         self._setup_logging()
+        
+        # Setup resize handler
+        signal.signal(signal.SIGWINCH, self._handle_resize)
 
         # Register event handlers
         self.on('chatMsg', self.handle_chat)
@@ -129,6 +143,68 @@ class TUIBot(Bot):
         self.on('userLeave', self.handle_user_leave)
         self.on('setCurrent', self.handle_media_change)
         self.on('login', self.handle_login)
+
+    def _load_theme(self, theme_file):
+        """Load theme configuration from JSON file.
+        
+        Args:
+            theme_file (str): Path to theme JSON file
+            
+        Returns:
+            dict: Theme configuration
+        """
+        theme_path = Path(__file__).parent / theme_file
+        try:
+            with open(theme_path, 'r') as f:
+                return json.load(f)
+        except Exception as e:
+            self.logger.warning(f'Failed to load theme {theme_file}: {e}')
+            # Return default theme
+            return {
+                'colors': {
+                    'status_bar': {'background': 'cyan', 'text': 'black'},
+                    'borders': 'bright_black',
+                    'timestamps': 'bright_black',
+                    'user_ranks': {
+                        'owner': 'bright_yellow',
+                        'admin': 'bright_yellow',
+                        'moderator': 'bright_yellow',
+                        'registered': 'green',
+                        'guest': 'white'
+                    },
+                    'user_list_header': {'background': 'bright_white', 'text': 'black'},
+                    'messages': {
+                        'private': 'bright_magenta',
+                        'system_join': 'bright_green',
+                        'system_leave': 'bright_red',
+                        'system_media': 'bright_blue',
+                        'system_info': 'cyan',
+                        'mention_highlight': 'reverse'
+                    },
+                    'input': {'prompt': 'bright_white', 'text': 'white'}
+                },
+                'symbols': {
+                    'rank_owner': '~',
+                    'rank_admin': '%',
+                    'rank_moderator': '@',
+                    'rank_registered': '+',
+                    'rank_guest': ' ',
+                    'leader_marker': '[*]',
+                    'muted_marker': '[m]',
+                    'shadow_muted_marker': '[s]'
+                }
+            }
+
+    def _handle_resize(self, signum, frame):
+        """Handle terminal resize events.
+        
+        Args:
+            signum: Signal number
+            frame: Current stack frame
+        """
+        # Redraw the entire screen
+        if self.running:
+            self.render_screen()
 
     def _setup_logging(self):
         """Setup file logging for errors and chat history."""
@@ -282,7 +358,9 @@ class TUIBot(Bot):
             data (dict): User data from CyTube
         """
         username = data.get('name', '<unknown>')
-        self.add_system_message(f'{username} has joined', color='bright_green')
+        if self.show_join_quit:
+            color = self.theme['colors']['messages']['system_join']
+            self.add_system_message(f'{username} has joined', color=color)
         self.render_users()
 
     async def handle_user_leave(self, _, data):
@@ -293,7 +371,9 @@ class TUIBot(Bot):
             data (dict): User data from CyTube
         """
         username = data.get('name', '<unknown>')
-        self.add_system_message(f'{username} has left', color='bright_red')
+        if self.show_join_quit:
+            color = self.theme['colors']['messages']['system_leave']
+            self.add_system_message(f'{username} has left', color=color)
         self.render_users()
 
     async def handle_media_change(self, _, data):
@@ -323,7 +403,7 @@ class TUIBot(Bot):
 
         Layout:
             ┌────────────────────────────────────────────────────────┐
-            │ Status Bar (channel, users, time)                      │
+            │ Top Status Bar (clock, session, movie info)            │
             ├────────────────────────────────────────────────────────┤
             │                                                         │
             │                                                         │
@@ -331,10 +411,11 @@ class TUIBot(Bot):
             │                                                         │
             │                                                         │
             ├────────────────────────────────────────────────────────┤
+            │ Bottom Status (username, viewers, high water mark)     │
             │ Input Line: >                                          │
             └────────────────────────────────────────────────────────┘
 
-            User List (right side, 20 chars wide):
+            User List (right side, 22 chars wide):
             ┌──────────────────────┐
             │ Users (15)           │
             │ ~owner               │
@@ -344,22 +425,104 @@ class TUIBot(Bot):
             └──────────────────────┘
         """
         print(self.term.clear)
-        self.render_status()
+        self.render_top_status()
         self.render_chat()
         self.render_users()
+        self.render_bottom_status()
         self.render_input()
 
-    def render_status(self):
-        """Render the status bar at the top of the screen."""
+    def render_top_status(self):
+        """Render the top status bar with real-time information."""
         with self.term.location(0, 0):
-            # Status bar background
-            status_line = self.status_message.ljust(self.term.width)
-            print(self.term.black_on_cyan(status_line), end='', flush=True)
+            # Get theme colors
+            bg_color = self.theme['colors']['status_bar']['background']
+            text_color = self.theme['colors']['status_bar']['text']
+            
+            # Build status components
+            parts = []
+            
+            # Channel name and connection status
+            if self.channel:
+                parts.append(f"📺 {self.channel.name}")
+            else:
+                parts.append("Connecting...")
+            
+            # Current time
+            current_time = datetime.now().strftime('%H:%M:%S')
+            parts.append(f"🕐 {current_time}")
+            
+            # Session duration
+            session_duration = datetime.now() - self.session_start
+            hours, remainder = divmod(int(session_duration.total_seconds()), 3600)
+            minutes, seconds = divmod(remainder, 60)
+            parts.append(f"⏱ {hours:02d}:{minutes:02d}:{seconds:02d}")
+            
+            # Current media
+            if self.channel and self.channel.playlist and self.channel.playlist.current:
+                media = self.channel.playlist.current
+                title = media.title[:30] + '...' if len(media.title) > 30 else media.title
+                # Media duration
+                if hasattr(media, 'duration') and media.duration:
+                    mins, secs = divmod(media.duration, 60)
+                    parts.append(f"🎬 {title} ({mins}:{secs:02d})")
+                else:
+                    parts.append(f"🎬 {title}")
+            
+            # Join status line with separator
+            status_line = "  │  ".join(parts)
+            status_line = status_line.ljust(self.term.width)
+            
+            # Apply theme colors
+            color_func = getattr(self.term, f'{text_color}_on_{bg_color}', self.term.black_on_cyan)
+            print(color_func(status_line), end='', flush=True)
+
+    def render_bottom_status(self):
+        """Render the bottom status bar with user info and stats."""
+        status_y = self.term.height - 2
+        user_list_width = 22
+        status_width = self.term.width - user_list_width - 1
+        
+        with self.term.location(0, status_y):
+            # Get theme colors
+            bg_color = self.theme['colors']['status_bar']['background']
+            text_color = self.theme['colors']['status_bar']['text']
+            
+            parts = []
+            
+            # My username
+            if self.user and self.user.name:
+                parts.append(f"👤 {self.user.name}")
+            
+            # Viewer count vs chat users
+            if self.channel and self.channel.userlist:
+                chat_users = len(self.channel.userlist)
+                total_viewers = self.channel.userlist.count if hasattr(self.channel.userlist, 'count') else chat_users
+                parts.append(f"👥 {chat_users}/{total_viewers}")
+            
+            # 24h high water mark (if available from database)
+            if self.db:
+                try:
+                    high_water = self.db.get_high_water_mark()
+                    if high_water:
+                        parts.append(f"📊 Peak: {high_water}")
+                except Exception:
+                    pass
+            
+            status_line = "  │  ".join(parts)
+            status_line = status_line.ljust(status_width)
+            
+            # Apply theme colors
+            color_func = getattr(self.term, f'{text_color}_on_{bg_color}', self.term.black_on_cyan)
+            print(color_func(status_line), end='', flush=True)
+
+    def render_status(self):
+        """Legacy method - redirect to top status bar."""
+        self.render_top_status()
 
     def render_chat(self):
         """Render the chat history area with scrolling support."""
-        # Calculate dimensions
-        chat_height = self.term.height - 3  # Leave room for status, separator, input
+        # Calculate dimensions - now we have 4 lines used (top status, separator, bottom status, input)
+        chat_height = self.term.height - 4
         user_list_width = 22
         chat_width = self.term.width - user_list_width - 1
 
@@ -370,8 +533,10 @@ class TUIBot(Bot):
         visible_messages = list(self.chat_history)[start_idx:end_idx]
 
         # Render separator line
+        border_color = self.theme['colors']['borders']
+        border_func = getattr(self.term, border_color, self.term.bright_black)
         with self.term.location(0, 1):
-            print(self.term.bright_black('─' * (chat_width)), end='', flush=True)
+            print(border_func('─' * (chat_width)), end='', flush=True)
 
         # Render chat messages
         for i, msg_data in enumerate(visible_messages):
@@ -442,19 +607,26 @@ class TUIBot(Bot):
 
         user_list_width = 22
         user_list_x = self.term.width - user_list_width
-        chat_height = self.term.height - 3
+        chat_height = self.term.height - 4  # Updated for new layout
 
+        # Get theme colors
+        header_bg = self.theme['colors']['user_list_header']['background']
+        header_text = self.theme['colors']['user_list_header']['text']
+        border_color = self.theme['colors']['borders']
+        
         # Header
         with self.term.location(user_list_x, 1):
             user_count = len(self.channel.userlist)
             header = f' Users ({user_count}) '
             header = header.ljust(user_list_width - 1)
-            print(self.term.black_on_bright_white(header), end='', flush=True)
+            header_func = getattr(self.term, f'{header_text}_on_{header_bg}', self.term.black_on_bright_white)
+            print(header_func(header), end='', flush=True)
 
         # Vertical separator
-        for i in range(2, self.term.height - 1):
+        border_func = getattr(self.term, border_color, self.term.bright_black)
+        for i in range(2, self.term.height - 2):
             with self.term.location(user_list_x - 1, i):
-                print(self.term.bright_black('│'), end='', flush=True)
+                print(border_func('│'), end='', flush=True)
 
         # Separate active and AFK users
         active_users = []
@@ -475,33 +647,50 @@ class TUIBot(Bot):
         # Combine lists: active first, then AFK
         sorted_users = active_users + afk_users
 
-        # Render users
-        for i, user in enumerate(sorted_users[:chat_height - 1]):
-            line_num = 2 + i
-            with self.term.location(user_list_x, line_num):
-                # Get rank symbol
-                rank_symbol = self.RANK_SYMBOLS.get(int(user.rank), ' ')
+        # Get rank colors from theme
+        rank_colors = self.theme['colors']['user_ranks']
+        symbols = self.theme['symbols']
 
-                # Determine color based on rank
-                if user.rank >= 2:  # Moderator and above
-                    color_func = self.term.bright_yellow
-                elif user.rank >= 1:  # Registered
-                    color_func = self.term.green
-                else:  # Guest
-                    color_func = self.term.white
+        # Render users
+        for i, user in enumerate(sorted_users[:chat_height]):
+            line_num = 2 + i
+            
+            # IMPORTANT: Clear the entire line first to prevent artifacts
+            with self.term.location(user_list_x, line_num):
+                print(' ' * (user_list_width - 1), end='', flush=True)
+            
+            with self.term.location(user_list_x, line_num):
+                # Get rank symbol from theme
+                if user.rank >= 4:
+                    rank_symbol = symbols.get('rank_owner', '~')
+                    color_name = rank_colors.get('owner', 'bright_yellow')
+                elif user.rank >= 3:
+                    rank_symbol = symbols.get('rank_admin', '%')
+                    color_name = rank_colors.get('admin', 'bright_yellow')
+                elif user.rank >= 2:
+                    rank_symbol = symbols.get('rank_moderator', '@')
+                    color_name = rank_colors.get('moderator', 'bright_yellow')
+                elif user.rank >= 1:
+                    rank_symbol = symbols.get('rank_registered', '+')
+                    color_name = rank_colors.get('registered', 'green')
+                else:
+                    rank_symbol = symbols.get('rank_guest', ' ')
+                    color_name = rank_colors.get('guest', 'white')
+                
+                color_func = getattr(self.term, color_name, self.term.white)
 
                 # Build username string
                 user_str = f'{rank_symbol}{user.name}'
                 
-                # Add mute indicators
+                # Add status indicators from theme
                 if user.smuted:
-                    user_str += '[s]'
+                    user_str += symbols.get('shadow_muted_marker', '[s]')
                 elif user.muted:
-                    user_str += '[m]'
+                    user_str += symbols.get('muted_marker', '[m]')
                 
                 # Add leader indicator
                 if self.channel.userlist.leader == user:
-                    user_str += '[*]'
+                    user_str += symbols.get('leader_marker', '[*]')
 
                 # Truncate if too long
                 max_width = user_list_width - 2
@@ -519,10 +708,10 @@ class TUIBot(Bot):
                 # Apply color
                 colored_str = color_func(user_str)
                 
-                print(f' {colored_str}'.ljust(user_list_width - 1), end='', flush=True)
+                print(f' {colored_str}', end='', flush=True)
 
-        # Clear remaining lines
-        for i in range(len(sorted_users), chat_height - 1):
+        # Clear remaining lines to prevent artifacts
+        for i in range(len(sorted_users), chat_height):
             line_num = 2 + i
             with self.term.location(user_list_x, line_num):
                 print(' ' * (user_list_width - 1), end='', flush=True)
@@ -634,22 +823,26 @@ class TUIBot(Bot):
         cursor_pos = len(self.input_buffer)
         
         # Check for emote completion (starts with #)
+        # Find the last # in the buffer
         last_hash = self.input_buffer.rfind('#')
-        if last_hash >= 0:
-            # Extract partial emote name after #
-            partial = self.input_buffer[last_hash + 1:cursor_pos]
-            matches = self._get_emote_matches(partial)
-            
-            if matches:
-                # Store state for cycling
-                self.tab_completion_matches = matches
-                self.tab_completion_index = 0
-                self.tab_completion_start = last_hash
+        if last_hash >= 0 and last_hash < cursor_pos:
+            # Make sure there's no whitespace between # and cursor
+            text_after_hash = self.input_buffer[last_hash + 1:cursor_pos]
+            if ' ' not in text_after_hash:
+                # Extract partial emote name after #
+                partial = text_after_hash
+                matches = self._get_emote_matches(partial)
                 
-                # Apply first match (includes the # prefix)
-                self.input_buffer = self.input_buffer[:last_hash] + matches[0]
-                self.render_input()
-            return
+                if matches:
+                    # Store state for cycling
+                    self.tab_completion_matches = matches
+                    self.tab_completion_index = 0
+                    self.tab_completion_start = last_hash
+                    
+                    # Apply first match (includes the # prefix)
+                    self.input_buffer = self.input_buffer[:last_hash] + matches[0]
+                    self.render_input()
+                return
         
         # Check for username completion (2+ alphanumeric chars)
         # Find the start of the current word (working backwards from cursor)
@@ -791,7 +984,8 @@ class TUIBot(Bot):
             /me <action> - Send action message
             /quit - Exit the application
             /clear - Clear chat history
-            /scroll - Toggle auto-scroll
+            /scroll - Scroll to bottom
+            /togglejoins - Toggle join/quit messages
         """
         if not self.input_buffer.strip():
             return
@@ -842,6 +1036,10 @@ class TUIBot(Bot):
             self.scroll_offset = 0
             self.render_chat()
             self.render_input()
+        elif command == 'togglejoins':
+            self.show_join_quit = not self.show_join_quit
+            status = "enabled" if self.show_join_quit else "disabled"
+            self.add_system_message(f'Join/quit messages {status}', color='bright_cyan')
         else:
             self.add_system_message(f'Unknown command: /{command}', color='bright_red')
 
@@ -874,16 +1072,19 @@ class TUIBot(Bot):
             '/me <action> - Send action message',
             '/clear - Clear chat history',
             '/scroll - Scroll to bottom',
+            '/togglejoins - Toggle join/quit messages',
             '/quit - Exit',
             '',
             'Keybindings:',
             'Enter - Send message',
+            'Tab - Username/emote completion',
             'Up/Down - Navigate history',
-            'PgUp/PgDn - Scroll chat',
+            'PgUp/PgDn or Ctrl+Up/Down - Scroll chat',
         ]
 
+        info_color = self.theme['colors']['messages']['system_info']
         for line in help_lines:
-            self.add_system_message(line, color='bright_cyan')
+            self.add_system_message(line, color=info_color)
 
     async def run_tui(self):
         """Run the TUI main loop.
@@ -937,11 +1138,14 @@ async def run_tui_bot():
     # Load configuration
     conf, kwargs = get_config()
 
+    # Extract TUI-specific configuration
+    tui_config = conf.get('tui', {})
+
     # Disable database tracking for TUI (keep it lightweight)
     kwargs['enable_db'] = False
 
-    # Create bot instance
-    bot = TUIBot(**kwargs)
+    # Create bot instance with TUI config
+    bot = TUIBot(tui_config=tui_config, **kwargs)
 
     try:
         # Run the TUI
