@@ -1,23 +1,19 @@
-# TUI Configuration
+# TUI Chat Client Configuration Guide
 
-The TUI bot supports both JSON and YAML configuration files.
+## Configuration File Formats
 
-## Using YAML (Recommended)
+The TUI bot supports both YAML and JSON configuration files. Choose the format you're most comfortable with.
 
-YAML is more human-friendly with comments and better readability:
+### Running with Configuration
 
 ```bash
-python bots/tui/bot.py bots/tui/config.yaml
+python examples/tui/bot.py examples/tui/config.yaml
 ```
 
-**Note**: Requires PyYAML: `pip install pyyaml`
-
-## Using JSON (Original)
-
-JSON format still works for backward compatibility:
+or
 
 ```bash
-python bots/tui/bot.py bots/tui/config.json
+python examples/tui/bot.py examples/tui/config.json
 ```
 
 ## Configuration Options

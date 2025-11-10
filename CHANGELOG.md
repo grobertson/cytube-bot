@@ -727,7 +727,7 @@ This release represents a complete architectural overhaul of the cytube-bot proj
 #### Added
 - **New Directory Structure**:
   - `lib/` - Core CyTube interaction library (formerly `cytube_bot_async/`)
-  - `bots/` - Bot implementations (formerly `examples/`)
+  - `examples/` - Reference bot implementations (formerly `examples/`)
   - `common/` - Shared utilities for bot development
 
 - **Python Path Hack**:
@@ -777,7 +777,7 @@ For existing users of the old package structure:
    from common import get_config, Shell
    ```
 
-2. **Move bot files**: Place your custom bots in the `bots/` directory
+2. **Move bot files**: Place your custom bots in the `examples/` directory or create your main bot in `bot/`
 
 3. **Install dependencies**: `pip install -r requirements.txt`
 

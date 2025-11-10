@@ -13,8 +13,10 @@ This project follows a **monolithic architecture** where all components live tog
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                  Bot Applications                    │
-│            (bots/markov, bots/echo, etc.)           │
+│              Bot Applications & Examples             │
+│  • bot/rosey/ - Full-featured main bot              │
+│  • examples/ - Reference implementations            │
+│    - tui/ (terminal UI), log/, echo/, markov/       │
 │  • Business logic                                    │
 │  • Event handlers                                    │
 │  • Bot-specific features                            │
@@ -90,15 +92,25 @@ This project follows a **monolithic architecture** where all components live tog
 - Extend shell commands
 - Add shared helper functions
 
-### bots/ - Bot Implementations
+### bot/ - Main Application & examples/ - Reference Implementations
 
-**Purpose**: Concrete bot applications
+**Purpose**: 
+- `bot/rosey/` - Full-featured production bot with logging, shell, database
+- `examples/` - Simplified reference implementations for learning
 
 **Structure**:
-```
-bots/
-├── echo/           # Simple message echo
-├── log/            # Chat/media logging
+
+```text
+bot/
+└── rosey/          # Main Rosey bot
+    ├── rosey.py    # Full-featured implementation
+    ├── prompt.md   # AI personality (for future LLM)
+    └── config.json.dist
+
+examples/
+├── tui/            # ⭐ Terminal UI chat client
+├── log/            # Simple chat/media logging
+├── echo/           # Basic message echo
 └── markov/         # Markov chain text generation
 ```
 
@@ -109,7 +121,8 @@ bots/
 - Configuration
 
 **Extension Points**:
-- Create new bot directories
+- Customize Rosey in `bot/rosey/`
+- Create new examples in `examples/`
 - Combine features from multiple examples
 - Add custom commands and behaviors
 
@@ -228,9 +241,10 @@ CytubeError (base)
 ## Future Architecture Plans
 
 ### LLM Integration Layer
-```
-bots/mybot/
-├── bot.py              # Main bot
+
+```text
+bot/rosey/
+├── rosey.py            # Main bot
 ├── llm/
 │   ├── client.py       # LLM API client
 │   ├── context.py      # Context management
@@ -240,9 +254,10 @@ bots/mybot/
 ```
 
 ### Plugin System
-```
-bots/mybot/
-├── bot.py
+
+```text
+bot/rosey/
+├── rosey.py
 └── plugins/
     ├── commands.py     # Command handler plugin
     ├── moderation.py   # Auto-moderation plugin
@@ -270,15 +285,19 @@ class MultiBot:
    - Test immediately (no reinstall needed)
    - Changes affect all bots
 
-2. **Bot Changes** (bots/)
-   - Modify bot.py
+2. **Bot Changes** (bot/rosey/)
+   - Modify rosey.py
    - Restart bot
-   - Independent of other bots
+   - Independent of examples
 
 3. **Common Changes** (common/)
    - Modify utilities
    - Restart affected bots
    - Changes affect all users
+
+4. **Example Changes** (examples/)
+   - Modify for learning/testing
+   - Won't affect main Rosey bot
 
 ### Testing Strategy
 
@@ -330,21 +349,25 @@ class MultiBot:
 ## Migration from Package Structure
 
 Old structure:
-```
+
+```text
 site-packages/cytube_bot_async/  # Installed package
 your-project/
 └── bot.py                        # Your code
 ```
 
 New structure:
-```
-cytube-bot/
+
+```text
+rosey-robot/
 ├── lib/           # Library code (local)
-└── bots/          # Your code (local)
-    └── mybot/
+├── common/        # Shared utilities
+├── bot/rosey/     # Main application
+└── examples/      # Reference implementations
 ```
 
 Benefits:
+
 - No installation step
 - Edit library directly
 - Single source tree

@@ -1,4 +1,4 @@
-# Quick Start Guide
+# Quick Start Guide - Rosey
 
 ## Running Your First Bot
 
@@ -8,16 +8,25 @@
 pip install -r requirements.txt
 ```
 
-### 2. Configure Your Bot
+### 2. Choose Your Bot
 
-Copy and edit a config file from one of the example bots:
+**Rosey (Main Bot)** - Full-featured with logging, shell control, and database:
 
 ```bash
-cd bots/echo
-cp config.json my-config.json
+cd bot/rosey
+cp config.json.dist config.json
 ```
 
-Edit `my-config.json`:
+**Simple Examples** - Minimal implementations:
+
+```bash
+cd examples/log  # or examples/echo, examples/markov, examples/tui
+cp config.json.dist config.json
+```
+
+### 3. Configure Your Bot
+
+Edit `config.json`:
 
 ```json
 {
@@ -26,21 +35,29 @@ Edit `my-config.json`:
   "user": ["YourBotName", "YourPassword"],
   "log_level": "INFO",
   "restart_delay": 5,
-  "response_timeout": 0.1
+  "response_timeout": 1
 }
 ```
 
-### 3. Run the Bot
+### 4. Run the Bot
 
+For Rosey:
 ```bash
-python bot.py my-config.json
+cd bot/rosey
+python rosey.py config.json
+```
+
+For examples:
+```bash
+cd examples/log  # or other example
+python bot.py config.json
 ```
 
 ## Project Structure Overview
 
 ```
-cytube-bot/
-├── lib/                    # Core library - don't modify unless extending functionality
+rosey-robot/
+├── lib/                    # Core CyTube library - don't modify unless extending
 │   ├── __init__.py        # Library exports
 │   ├── bot.py             # Main Bot class
 │   ├── channel.py         # Channel state
@@ -55,12 +72,20 @@ cytube-bot/
 ├── common/                 # Shared bot utilities
 │   ├── __init__.py
 │   ├── config.py          # Configuration loader
-│   └── shell.py           # REPL interface
+│   ├── database.py        # SQLite for stats tracking
+│   └── shell.py           # Remote shell interface
 │
-├── bots/                   # Your bots go here
-│   ├── echo/              # Echo bot example
-│   ├── log/               # Logging bot example
-│   └── markov/            # Markov chain bot example
+├── bot/                    # Main Rosey application
+│   └── rosey/             # Full-featured CyTube bot
+│       ├── rosey.py       # Main bot script
+│       ├── prompt.md      # AI personality (for future LLM)
+│       └── config.json.dist
+│
+├── examples/               # Example implementations
+│   ├── tui/               # ⭐ Terminal UI chat client
+│   ├── log/               # Simple logging
+│   ├── echo/              # Echo bot
+│   └── markov/            # Markov chain generator
 │
 ├── requirements.txt        # Python dependencies
 └── README.md              # Full documentation
@@ -68,25 +93,26 @@ cytube-bot/
 
 ## Creating a New Bot
 
-1. Create a new directory under `bots/`:
+1. Create a new directory under `examples/`:
    ```bash
-   mkdir bots/mybot
-   cd bots/mybot
-   ```
+   mkdir examples/mybot
+   cd examples/mybot
+
 
 2. Create `bot.py`:
+
    ```python
    #!/usr/bin/env python3
    import sys
    from pathlib import Path
    
-   # Add project root to Python path (allows running from any directory)
+   # Add project root to Python path
    project_root = Path(__file__).parent.parent.parent
    sys.path.insert(0, str(project_root))
    
    import asyncio
    from lib import Bot
-   from common import get_config, Shell
+   from common import get_config
    
    class MyBot(Bot):
        def __init__(self, *args, **kwargs):
@@ -97,23 +123,24 @@ cytube-bot/
            # Your bot logic here
            pass
    
-   def main():
+   async def run_bot():
        conf, kwargs = get_config()
        bot = MyBot(**kwargs)
-       shell = Shell(conf.get('shell'), bot)
-       
        try:
-           asyncio.run(bot.run())
+           await bot.run()
        except KeyboardInterrupt:
            return 0
-       
        return 1
+   
+   def main():
+       return asyncio.run(run_bot())
    
    if __name__ == '__main__':
        sys.exit(main())
    ```
 
 3. Create `config.json`:
+
    ```json
    {
      "domain": "https://cytu.be",
@@ -123,9 +150,11 @@ cytube-bot/
    ```
 
 4. Run it:
+
    ```bash
    python bot.py config.json
    ```
+
 
 ## Common Bot Events
 
@@ -189,8 +218,9 @@ Commands:
 
 - Read the full [README.md](README.md) for complete API documentation
 - Check [CHANGELOG.md](CHANGELOG.md) for version history
-- Explore the example bots in `bots/` for patterns
-- Plan your LLM integration strategy for future development
+- Explore the example implementations in `examples/` for patterns
+- Study Rosey (`bot/rosey/`) for a full-featured bot implementation
+- Review the TUI example (`examples/tui/`) for an interactive chat client
 
 ## Getting Help
 
