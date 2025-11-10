@@ -469,17 +469,18 @@ class TUIBot(Bot):
             if self.channel:
                 parts.append(f"📺 {self.channel.name}")
             else:
-                parts.append("Connecting...")
+                parts.append("📺 Connecting...")
             
             # Current media - "Now Playing: <title>"
             if self.channel and self.channel.playlist and self.channel.playlist.current:
                 media = self.channel.playlist.current
-                title = media.title[:40] + '...' if len(media.title) > 40 else media.title
-                parts.append(f"Now Playing: {title}")
+                title = media.title[:50] + '...' if len(media.title) > 50 else media.title
+                parts.append(f"▶ Now Playing: {title}")
             
             # Join status line with separator
             status_line = "  │  ".join(parts)
-            status_line = status_line.ljust(self.term.width)
+            # Pad to full width
+            status_line = status_line + ' ' * (self.term.width - len(status_line))
             
             # Apply theme colors
             color_func = getattr(self.term, f'{text_color}_on_{bg_color}', self.term.black_on_cyan)
@@ -488,27 +489,29 @@ class TUIBot(Bot):
     def render_bottom_status(self):
         """Render the bottom status bar with user info and stats."""
         status_y = self.term.height - 2
-        user_list_width = 22
         
         with self.term.location(0, status_y):
             # Get theme colors
             bg_color = self.theme['colors']['status_bar']['background']
             text_color = self.theme['colors']['status_bar']['text']
             
-            parts = []
+            # Left side parts
+            left_parts = []
             
-            # My username
-            if self.user and self.user.name:
-                parts.append(f"👤 {self.user.name}")
+            # Viewer count vs chat users
+            if self.channel and self.channel.userlist:
+                chat_users = len(self.channel.userlist)
+                total_viewers = self.channel.userlist.count if hasattr(self.channel.userlist, 'count') else chat_users
+                left_parts.append(f"👥 {chat_users}/{total_viewers}")
             
-            # Session duration
-            session_duration = datetime.now() - self.session_start
-            hours, remainder = divmod(int(session_duration.total_seconds()), 3600)
-            minutes, seconds = divmod(remainder, 60)
-            if hours > 0:
-                parts.append(f"⏱ Session: {hours}h {minutes}m")
-            else:
-                parts.append(f"⏱ Session: {minutes}m {seconds}s")
+            # 24h high water mark (if available from database)
+            if self.db:
+                try:
+                    high_water = self.db.get_high_water_mark()
+                    if high_water:
+                        left_parts.append(f"📊 Peak: {high_water}")
+                except Exception:
+                    pass
             
             # Media runtime and remaining
             if self.channel and self.channel.playlist and self.channel.playlist.current:
@@ -519,9 +522,9 @@ class TUIBot(Bot):
                     if total_mins >= 60:
                         total_hours = total_mins // 60
                         total_mins = total_mins % 60
-                        parts.append(f"Runtime: {total_hours}h {total_mins}m")
+                        left_parts.append(f"⏱ Runtime: {total_hours}h {total_mins}m")
                     else:
-                        parts.append(f"Runtime: {total_mins}m {total_secs}s")
+                        left_parts.append(f"⏱ Runtime: {total_mins}m {total_secs}s")
                     
                     # Time remaining (if we have current time)
                     if hasattr(media, 'seconds') and media.seconds is not None:
@@ -531,28 +534,38 @@ class TUIBot(Bot):
                             if rem_mins >= 60:
                                 rem_hours = rem_mins // 60
                                 rem_mins = rem_mins % 60
-                                parts.append(f"Remaining: {rem_hours}h {rem_mins}m")
+                                left_parts.append(f"⏳ Remaining: {rem_hours}h {rem_mins}m")
                             else:
-                                parts.append(f"Remaining: {rem_mins}m {rem_secs}s")
+                                left_parts.append(f"⏳ Remaining: {rem_mins}m {rem_secs}s")
             
-            # Viewer count vs chat users
-            if self.channel and self.channel.userlist:
-                chat_users = len(self.channel.userlist)
-                total_viewers = self.channel.userlist.count if hasattr(self.channel.userlist, 'count') else chat_users
-                parts.append(f"👥 {chat_users}/{total_viewers}")
+            # Right side parts (will be right-justified)
+            right_parts = []
             
-            # 24h high water mark (if available from database)
-            if self.db:
-                try:
-                    high_water = self.db.get_high_water_mark()
-                    if high_water:
-                        parts.append(f"📊 Peak: {high_water}")
-                except Exception:
-                    pass
+            # Session duration
+            session_duration = datetime.now() - self.session_start
+            hours, remainder = divmod(int(session_duration.total_seconds()), 3600)
+            minutes, seconds = divmod(remainder, 60)
+            if hours > 0:
+                right_parts.append(f"⏱  Session: {hours}h {minutes}m")
+            else:
+                right_parts.append(f"⏱  Session: {minutes}m {seconds}s")
             
-            status_line = "  │  ".join(parts)
-            # Make sure status line fills the entire width
-            status_line = status_line.ljust(self.term.width)
+            # My username
+            if self.user and self.user.name:
+                right_parts.append(f"👤 {self.user.name}")
+            
+            # Build the status line
+            left_text = "  │  ".join(left_parts)
+            right_text = "  │  ".join(right_parts)
+            
+            # Calculate spacing
+            available_width = self.term.width - len(left_text) - len(right_text)
+            if available_width < 3:
+                # Not enough space, just show left side
+                status_line = left_text + ' ' * (self.term.width - len(left_text))
+            else:
+                # Add spacing between left and right
+                status_line = left_text + ' ' * available_width + right_text
             
             # Apply theme colors
             color_func = getattr(self.term, f'{text_color}_on_{bg_color}', self.term.black_on_cyan)
