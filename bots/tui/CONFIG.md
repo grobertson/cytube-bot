@@ -34,6 +34,7 @@ python bots/tui/bot.py bots/tui/config.json
 - `theme`: Theme name (see Themes section)
 - `show_join_quit`: Show/hide join/quit messages (true/false)
 - `clock_format`: `12h` (AM/PM) or `24h` (military time)
+- `hide_afk_users`: Hide AFK users from userlist (true/false, default: false)
 
 ## Themes
 
@@ -71,6 +72,7 @@ tui:
   theme: hal9000  # I'm sorry Dave...
   show_join_quit: true
   clock_format: 12h
+  hide_afk_users: false  # Set to true to hide AFK users
 ```
 
 ## Example JSON Config
@@ -86,7 +88,8 @@ tui:
   "tui": {
     "theme": "hal9000",
     "show_join_quit": true,
-    "clock_format": "12h"
+    "clock_format": "12h",
+    "hide_afk_users": false
   }
 }
 ```

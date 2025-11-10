@@ -30,3 +30,6 @@ tui:
   
   # Clock format: 12h (AM/PM) or 24h (military time)
   clock_format: 12h
+  
+  # Hide AFK users from userlist (default: false)
+  hide_afk_users: false
