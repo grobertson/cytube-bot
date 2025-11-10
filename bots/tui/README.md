@@ -19,11 +19,16 @@ A full-featured terminal user interface (TUI) for CyTube chat rooms, inspired by
 - **Command history** - navigate with up/down arrows
 - **Action messages** - `/me` command support
 - **System notifications** - user joins/leaves, media changes
+- **Chat history logging** - All messages saved to timestamped log files
+- **Error logging** - Exceptions and warnings logged for troubleshooting
 
 ### ⌨️ Keyboard Navigation
+
 - `Enter` - Send message
+- `Tab` - Username/emote completion (cycle through matches)
 - `↑` / `↓` - Navigate command history
 - `Page Up` / `Page Down` - Scroll chat history
+- `Ctrl+↑` / `Ctrl+↓` - Scroll chat history (alternative)
 - `Ctrl+C` - Quit gracefully
 
 ### 🎯 Modern Improvements Over Classic IRC Clients
@@ -38,6 +43,8 @@ Unlike BitchX and IRCII, this TUI includes:
 6. **Visual hierarchy** - Clear separation of UI elements with borders and colors
 7. **AFK indicators** - Dimmed display for away users
 8. **Leader highlighting** - Bold display for video leader
+9. **Tab completion** - Auto-complete usernames and emotes
+10. **Persistent logging** - Chat and error logs saved to disk
 
 ## Installation
 
@@ -113,7 +120,17 @@ python bot.py my_config.json
 
 ### Tips & Tricks
 
-1. **Multiple instances**: Run multiple TUIs in different terminal windows/tabs for multi-channel monitoring
+1. **Tab completion**: Start typing a username after `@` or an emote after `:`, then press Tab to auto-complete. Press Tab again to cycle through matches.
+   - Example: Type `@ali` then Tab to complete to `@alice`
+   - Example: Type `:sm` then Tab to complete to `:smile:`
+
+2. **Log files**: The TUI automatically creates two types of log files in the `bots/tui/logs/` directory:
+   - `tui_errors.log` - Contains errors and warnings for troubleshooting
+   - `chat_YYYYMMDD_HHMMSS.log` - Complete chat history with timestamps
+   
+3. **Scrolling shortcuts**: Use either Page Up/Down or Ctrl+Up/Down to scroll through chat history
+
+4. **Multiple instances**: Run multiple TUIs in different terminal windows/tabs for multi-channel monitoring
 
 2. **tmux/screen integration**: Perfect for long-running sessions
    ```bash

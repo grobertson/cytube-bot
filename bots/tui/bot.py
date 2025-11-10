@@ -107,6 +107,9 @@ class TUIBot(Bot):
         self.input_buffer = ''
         self.input_history = deque(maxlen=100)
         self.history_pos = -1
+        self.tab_completion_matches = []
+        self.tab_completion_index = 0
+        self.tab_completion_prefix = ''
 
         # Scrolling
         self.scroll_offset = 0
@@ -115,13 +118,57 @@ class TUIBot(Bot):
         self.running = False
         self.status_message = 'Connecting...'
 
+        # Setup logging to file
+        self._setup_logging()
+
         # Register event handlers
         self.on('chatMsg', self.handle_chat)
         self.on('pm', self.handle_pm)
+        self.on('userlist', self.handle_userlist)
         self.on('addUser', self.handle_user_join)
         self.on('userLeave', self.handle_user_leave)
         self.on('setCurrent', self.handle_media_change)
         self.on('login', self.handle_login)
+
+    def _setup_logging(self):
+        """Setup file logging for errors and chat history."""
+        # Create logs directory if it doesn't exist
+        log_dir = Path(__file__).parent / 'logs'
+        log_dir.mkdir(exist_ok=True)
+
+        # Error log file
+        error_log = log_dir / 'tui_errors.log'
+        error_handler = logging.FileHandler(error_log, encoding='utf-8')
+        error_handler.setLevel(logging.WARNING)
+        error_handler.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        ))
+        self.logger.addHandler(error_handler)
+
+        # Chat history log file
+        chat_log = log_dir / f'chat_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'
+        self.chat_log_file = open(chat_log, 'a', encoding='utf-8')
+        self.logger.info(f'Chat logging to: {chat_log}')
+        self.logger.info(f'Error logging to: {error_log}')
+
+    def _log_chat(self, username, message, prefix=''):
+        """Log a chat message to the chat history file.
+
+        Args:
+            username (str): Username of the sender
+            message (str): Message content
+            prefix (str, optional): Prefix for the message (e.g., '[PM]', '*')
+        """
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        if prefix:
+            log_line = f'[{timestamp}] {prefix} <{username}> {message}\n'
+        else:
+            log_line = f'[{timestamp}] <{username}> {message}\n'
+        try:
+            self.chat_log_file.write(log_line)
+            self.chat_log_file.flush()
+        except Exception as e:
+            self.logger.error(f'Failed to write to chat log: {e}')
 
     def get_username_color(self, username):
         """Get a consistent color for a username.
@@ -183,6 +230,9 @@ class TUIBot(Bot):
             'color': color
         })
 
+        # Log system messages too
+        self._log_chat('*', message, prefix='*')
+
         if self.scroll_offset == 0:
             self.render_chat()
             self.render_input()
@@ -198,6 +248,7 @@ class TUIBot(Bot):
         msg = self.msg_parser.parse(data.get('msg', ''))
 
         self.add_chat_line(username, msg)
+        self._log_chat(username, msg)
 
     async def handle_pm(self, _, data):
         """Handle incoming private messages.
@@ -210,6 +261,18 @@ class TUIBot(Bot):
         msg = self.msg_parser.parse(data.get('msg', ''))
 
         self.add_chat_line(username, msg, prefix='[PM]', color_override='bright_magenta')
+        self._log_chat(username, msg, prefix='[PM]')
+
+    async def handle_userlist(self, _, data):
+        """Handle initial userlist event.
+
+        Args:
+            _ (str): Event name (unused)
+            data (list): List of user data from CyTube
+        """
+        # The userlist event provides the initial list of users
+        # Render the user list once it's populated
+        self.render_users()
 
     async def handle_user_join(self, _, data):
         """Handle user join events.
@@ -462,14 +525,26 @@ class TUIBot(Bot):
                 # Handle special keys
                 if key.name == 'KEY_ENTER':
                     await self.process_command()
+                elif key.name == 'KEY_TAB':
+                    self.handle_tab_completion()
                 elif key.name == 'KEY_BACKSPACE' or key.name == 'KEY_DELETE':
                     if self.input_buffer:
                         self.input_buffer = self.input_buffer[:-1]
+                        # Reset tab completion on edit
+                        self.tab_completion_matches = []
                         self.render_input()
                 elif key.name == 'KEY_UP':
-                    self.navigate_history_up()
+                    # Check for Ctrl+Up (scroll)
+                    if hasattr(key, 'code') and key.code in (566, 567):  # Ctrl+Up codes
+                        self.scroll_up()
+                    else:
+                        self.navigate_history_up()
                 elif key.name == 'KEY_DOWN':
-                    self.navigate_history_down()
+                    # Check for Ctrl+Down (scroll)
+                    if hasattr(key, 'code') and key.code in (525, 526):  # Ctrl+Down codes
+                        self.scroll_down()
+                    else:
+                        self.navigate_history_down()
                 elif key.name == 'KEY_PGUP':
                     self.scroll_up()
                 elif key.name == 'KEY_PGDOWN':
@@ -483,7 +558,127 @@ class TUIBot(Bot):
                 else:
                     # Regular character input
                     self.input_buffer += key
+                    # Reset tab completion on new input
+                    self.tab_completion_matches = []
                     self.render_input()
+
+    def handle_tab_completion(self):
+        """Handle tab completion for usernames and emotes.
+
+        Tab completion works for:
+        - Usernames after '@' (e.g., @ali<TAB> -> @alice)
+        - Emotes after ':' (e.g., :smi<TAB> -> :smile:)
+        
+        Pressing Tab multiple times cycles through matches.
+        """
+        if not self.input_buffer:
+            return
+
+        # If we have existing matches, cycle through them
+        if self.tab_completion_matches:
+            self.tab_completion_index = (self.tab_completion_index + 1) % len(self.tab_completion_matches)
+            match = self.tab_completion_matches[self.tab_completion_index]
+            
+            # Replace from the prefix to the end
+            prefix_len = len(self.tab_completion_prefix)
+            self.input_buffer = self.input_buffer[:prefix_len] + match
+            self.render_input()
+            return
+
+        # Find what we're trying to complete
+        cursor_pos = len(self.input_buffer)
+        
+        # Look for @ or : before cursor
+        last_at = self.input_buffer.rfind('@')
+        last_colon = self.input_buffer.rfind(':')
+        
+        completion_type = None
+        start_pos = -1
+        
+        # Determine completion type based on which symbol is closer to cursor
+        if last_at > last_colon and last_at >= 0:
+            # Username completion
+            completion_type = 'username'
+            start_pos = last_at
+        elif last_colon >= 0:
+            # Emote completion
+            completion_type = 'emote'
+            start_pos = last_colon
+        
+        if completion_type is None or start_pos == -1:
+            return
+        
+        # Extract the partial text after the symbol
+        partial = self.input_buffer[start_pos + 1:cursor_pos]
+        
+        # Get matches based on type
+        matches = []
+        if completion_type == 'username':
+            matches = self._get_username_matches(partial)
+        elif completion_type == 'emote':
+            matches = self._get_emote_matches(partial)
+        
+        if not matches:
+            return
+        
+        # Store matches and prefix for cycling
+        self.tab_completion_matches = matches
+        self.tab_completion_index = 0
+        self.tab_completion_prefix = self.input_buffer[:start_pos + 1]
+        
+        # Apply first match
+        match = matches[0]
+        self.input_buffer = self.tab_completion_prefix + match
+        self.render_input()
+
+    def _get_username_matches(self, partial):
+        """Get list of usernames matching the partial string.
+
+        Args:
+            partial (str): Partial username to match
+
+        Returns:
+            list: List of matching usernames
+        """
+        if not self.channel or not self.channel.userlist:
+            return []
+        
+        partial_lower = partial.lower()
+        matches = []
+        
+        for username in self.channel.userlist.keys():
+            if username.lower().startswith(partial_lower):
+                matches.append(username)
+        
+        # Sort matches alphabetically
+        matches.sort(key=str.lower)
+        return matches
+
+    def _get_emote_matches(self, partial):
+        """Get list of emotes matching the partial string.
+
+        Args:
+            partial (str): Partial emote name to match
+
+        Returns:
+            list: List of matching emotes (with trailing :)
+        """
+        # Common emotes - in a real implementation, this would come from channel config
+        common_emotes = [
+            'smile', 'sad', 'laugh', 'angry', 'heart', 'thumbsup', 'thumbsdown',
+            'thinking', 'wave', 'party', 'fire', 'cool', 'eyes', 'shrug',
+            'check', 'cross', 'question', 'exclamation', 'star', 'sparkles'
+        ]
+        
+        partial_lower = partial.lower()
+        matches = []
+        
+        for emote in common_emotes:
+            if emote.startswith(partial_lower):
+                # Add trailing : for complete emote
+                matches.append(emote + ':')
+        
+        return matches
 
     def navigate_history_up(self):
         """Navigate backward in command history (up arrow)."""
@@ -668,8 +863,15 @@ class TUIBot(Bot):
 
         except Exception as e:
             self.add_system_message(f'Fatal error: {e}', color='bright_red')
+            self.logger.exception('Fatal error in TUI')
         finally:
             self.running = False
+            # Close chat log file
+            if hasattr(self, 'chat_log_file'):
+                try:
+                    self.chat_log_file.close()
+                except Exception as e:
+                    self.logger.error(f'Error closing chat log: {e}')
 
 
 async def run_tui_bot():
