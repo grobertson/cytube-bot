@@ -109,6 +109,7 @@ pip install -r requirements.txt blessed
    - `log_level` - Logging level (WARNING recommended for TUI)
    - `tui.theme` - Path to theme JSON file (optional, defaults to `theme.json`)
    - `tui.show_join_quit` - Show join/quit messages (optional, defaults to `true`)
+   - `tui.clock_format` - Clock format: `12h` for AM/PM or `24h` for 24-hour (optional, defaults to `12h`)
 
 ### Themes
 

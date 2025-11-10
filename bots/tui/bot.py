@@ -101,6 +101,7 @@ class TUIBot(Bot):
         # TUI configuration
         self.tui_config = tui_config or {}
         self.show_join_quit = self.tui_config.get('show_join_quit', True)
+        self.clock_format = self.tui_config.get('clock_format', '12h')  # '12h' or '24h'
         
         # Load theme
         self.theme = self._load_theme(self.tui_config.get('theme', 'theme.json'))
@@ -471,17 +472,21 @@ class TUIBot(Bot):
             else:
                 parts.append("📺 Connecting...")
             
-            # Clock
-            current_time = datetime.now().strftime('%H:%M')
+            # Clock with configurable format
+            if self.clock_format == '12h':
+                current_time = datetime.now().strftime('%I:%M %p')
+            else:
+                current_time = datetime.now().strftime('%H:%M')
             parts.append(f"🕐 {current_time}")
             
             # Current media - "Now Playing: <title>"
-            if self.channel and hasattr(self.channel, 'playlist') and self.channel.playlist:
-                if hasattr(self.channel.playlist, 'current') and self.channel.playlist.current:
-                    media = self.channel.playlist.current
-                    if hasattr(media, 'title'):
-                        title = media.title[:50] + '...' if len(media.title) > 50 else media.title
-                        parts.append(f"▶ Now Playing: {title}")
+            # Access like the log bot does: self.channel.playlist.current
+            if self.channel and self.channel.playlist and self.channel.playlist.current:
+                current = self.channel.playlist.current
+                # The current object should have a title attribute
+                title = str(current.title) if hasattr(current, 'title') else str(current)
+                title = title[:50] + '...' if len(title) > 50 else title
+                parts.append(f"▶ Now Playing: {title}")
             
             # Join status line with separator
             status_line = "  │  ".join(parts)
@@ -523,30 +528,30 @@ class TUIBot(Bot):
                     pass
             
             # Media runtime and remaining
-            if self.channel and hasattr(self.channel, 'playlist') and self.channel.playlist:
-                if hasattr(self.channel.playlist, 'current') and self.channel.playlist.current:
-                    media = self.channel.playlist.current
-                    if hasattr(media, 'duration') and media.duration:
-                        # Total runtime
-                        total_mins, total_secs = divmod(media.duration, 60)
-                        if total_mins >= 60:
-                            total_hours = total_mins // 60
-                            total_mins = total_mins % 60
-                            left_parts.append(f"⏱  Runtime: {total_hours}h {total_mins}m")
-                        else:
-                            left_parts.append(f"⏱  Runtime: {total_mins}m {total_secs}s")
-                        
-                        # Time remaining (if we have current time)
-                        if hasattr(media, 'seconds') and media.seconds is not None:
-                            remaining = media.duration - media.seconds
-                            if remaining > 0:
-                                rem_mins, rem_secs = divmod(int(remaining), 60)
-                                if rem_mins >= 60:
-                                    rem_hours = rem_mins // 60
-                                    rem_mins = rem_mins % 60
-                                    left_parts.append(f"⏳ Remaining: {rem_hours}h {rem_mins}m")
-                                else:
-                                    left_parts.append(f"⏳ Remaining: {rem_mins}m {rem_secs}s")
+            if self.channel and self.channel.playlist and self.channel.playlist.current:
+                current = self.channel.playlist.current
+                # Check if duration is available
+                if hasattr(current, 'duration') and current.duration:
+                    # Total runtime
+                    total_mins, total_secs = divmod(current.duration, 60)
+                    if total_mins >= 60:
+                        total_hours = total_mins // 60
+                        total_mins = total_mins % 60
+                        left_parts.append(f"⏱  Runtime: {total_hours}h {total_mins}m")
+                    else:
+                        left_parts.append(f"⏱  Runtime: {total_mins}m {total_secs}s")
+                    
+                    # Time remaining (if we have current time)
+                    if hasattr(current, 'seconds') and current.seconds is not None:
+                        remaining = current.duration - current.seconds
+                        if remaining > 0:
+                            rem_mins, rem_secs = divmod(int(remaining), 60)
+                            if rem_mins >= 60:
+                                rem_hours = rem_mins // 60
+                                rem_mins = rem_mins % 60
+                                left_parts.append(f"⏳ Remaining: {rem_hours}h {rem_mins}m")
+                            else:
+                                left_parts.append(f"⏳ Remaining: {rem_mins}m {rem_secs}s")
             
             # Right side parts (will be right-justified)
             right_parts = []
