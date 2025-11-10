@@ -29,6 +29,7 @@ import sys
 import os
 import json
 import signal
+import platform
 from pathlib import Path
 from collections import deque
 from datetime import datetime, timedelta
@@ -132,8 +133,9 @@ class TUIBot(Bot):
         # Setup logging to file
         self._setup_logging()
         
-        # Setup resize handler
-        signal.signal(signal.SIGWINCH, self._handle_resize)
+        # Setup resize handler (Unix only - Windows doesn't support SIGWINCH)
+        if platform.system() != 'Windows' and hasattr(signal, 'SIGWINCH'):
+            signal.signal(signal.SIGWINCH, self._handle_resize)
 
         # Register event handlers
         self.on('chatMsg', self.handle_chat)
