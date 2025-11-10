@@ -457,6 +457,36 @@ class TUIBot(Bot):
         self.logger.info(f'Chat logging to: {chat_log}')
         self.logger.info(f'Error logging to: {error_log}')
 
+    @staticmethod
+    def format_duration(seconds):
+        """Format seconds into human-readable duration.
+        
+        Args:
+            seconds: Duration in seconds
+            
+        Returns:
+            str: Formatted duration like "1h 23m 45s" or "Unknown"
+        """
+        if seconds < 0:
+            return "Unknown"
+
+        days = int(seconds // 86400)
+        hours = int((seconds % 86400) // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+
+        parts = []
+        if days > 0:
+            parts.append(f"{days}d")
+        if hours > 0:
+            parts.append(f"{hours}h")
+        if minutes > 0:
+            parts.append(f"{minutes}m")
+        if secs > 0 or not parts:
+            parts.append(f"{secs}s")
+
+        return ' '.join(parts)
+
     def _log_chat(self, username, message, prefix=''):
         """Log a chat message to the chat history file.
 
@@ -1504,6 +1534,47 @@ class TUIBot(Bot):
                 else:
                     self.add_system_message(f'Failed to load theme: {theme_name}', color='bright_red')
                     self.add_system_message('Use /theme to list available themes', color='bright_black')
+        
+        # === Info & Status Commands ===
+        elif command == 'info':
+            await self.cmd_info()
+        elif command == 'status':
+            await self.cmd_status()
+        
+        # === User Management ===
+        elif command == 'users':
+            await self.cmd_users()
+        elif command == 'user':
+            await self.cmd_user(args)
+        elif command == 'afk':
+            await self.cmd_afk(args)
+        
+        # === Chat Commands ===
+        elif command == 'say':
+            await self.cmd_say(args)
+        
+        # === Playlist Commands ===
+        elif command == 'playlist':
+            await self.cmd_playlist(args)
+        elif command == 'add':
+            await self.cmd_add(args)
+        elif command == 'remove':
+            await self.cmd_remove(args)
+        elif command == 'move':
+            await self.cmd_move(args)
+        elif command == 'jump':
+            await self.cmd_jump(args)
+        elif command == 'next' or command == 'skip':
+            await self.cmd_next()
+        
+        # === Channel Control ===
+        elif command == 'pause':
+            await self.cmd_pause()
+        elif command == 'kick':
+            await self.cmd_kick(args)
+        elif command == 'voteskip':
+            await self.cmd_voteskip()
+        
         else:
             self.add_system_message(f'Unknown command: /{command}', color='bright_red')
 
@@ -1527,20 +1598,353 @@ class TUIBot(Bot):
             color_override='bright_magenta'
         )
 
+    # === Command Implementations ===
+
+    async def cmd_info(self):
+        """Show bot and channel information."""
+        self.add_system_message('━━━ Bot & Channel Info ━━━', color='bright_cyan')
+        self.add_system_message(f'Bot: {self.user.name}', color='bright_white')
+        self.add_system_message(f'Rank: {self.user.rank}', color='bright_white')
+        self.add_system_message(f'AFK: {"Yes" if self.user.afk else "No"}', color='bright_white')
+        
+        if self.channel:
+            self.add_system_message(f'Channel: {self.channel.name}', color='bright_white')
+            
+            # Show both chat users and total connected viewers
+            chat_users = len(self.channel.userlist)
+            total_viewers = self.channel.userlist.count
+            if total_viewers and total_viewers != chat_users:
+                self.add_system_message(f'Users: {chat_users} in chat, {total_viewers} connected', color='bright_white')
+            else:
+                self.add_system_message(f'Users: {chat_users}', color='bright_white')
+            
+            if self.channel.playlist:
+                total = len(self.channel.playlist.queue)
+                self.add_system_message(f'Playlist: {total} items', color='bright_white')
+                # Calculate total playlist duration
+                total_time = sum(item.duration for item in self.channel.playlist.queue)
+                if total_time > 0:
+                    duration = self.format_duration(total_time)
+                    self.add_system_message(f'Duration: {duration}', color='bright_white')
+                if self.channel.playlist.current:
+                    title = self.channel.playlist.current.title
+                    self.add_system_message(f'Now playing: {title}', color='bright_white')
+
+    async def cmd_status(self):
+        """Show connection status."""
+        self.add_system_message('━━━ Connection Status ━━━', color='bright_cyan')
+        
+        # Bot uptime (session start)
+        uptime = (datetime.now() - self.session_start).total_seconds()
+        self.add_system_message(f'Uptime: {self.format_duration(uptime)}', color='bright_white')
+        
+        # Connection status
+        self.add_system_message(f'Connected: {"Yes" if self.socket else "No"}', color='bright_white')
+        if self.socket:
+            self.add_system_message(f'Server: {self.server}', color='bright_white')
+        
+        if self.channel:
+            self.add_system_message(f'Channel: {self.channel.name}', color='bright_white')
+            if self.channel.userlist.leader:
+                self.add_system_message(f'Leader: {self.channel.userlist.leader.name}', color='bright_white')
+            if self.channel.playlist:
+                paused = self.channel.playlist.paused
+                self.add_system_message(f'Playback: {"Paused" if paused else "Playing"}', color='bright_white')
+
+    async def cmd_users(self):
+        """List all users in channel."""
+        if not self.channel or not self.channel.userlist:
+            self.add_system_message('No users information available', color='bright_red')
+            return
+        
+        self.add_system_message(f'━━━ Users in Channel ({len(self.channel.userlist)}) ━━━', color='bright_cyan')
+        
+        users = sorted(self.channel.userlist.values(), key=lambda u: u.rank, reverse=True)
+        for user in users:
+            flags = []
+            if user.afk:
+                flags.append("AFK")
+            if user.muted:
+                flags.append("MUTED")
+            if self.channel.userlist.leader == user:
+                flags.append("LEADER")
+            
+            flag_str = f" [{', '.join(flags)}]" if flags else ""
+            self.add_system_message(f'  [{user.rank}] {user.name}{flag_str}', color='bright_white')
+
+    async def cmd_user(self, username):
+        """Show detailed info about a user."""
+        if not username:
+            self.add_system_message('Usage: /user <username>', color='bright_red')
+            return
+        
+        if not self.channel or username not in self.channel.userlist:
+            self.add_system_message(f'User "{username}" not found', color='bright_red')
+            return
+        
+        user = self.channel.userlist[username]
+        self.add_system_message(f'━━━ User Info: {user.name} ━━━', color='bright_cyan')
+        self.add_system_message(f'Rank: {user.rank}', color='bright_white')
+        self.add_system_message(f'AFK: {"Yes" if user.afk else "No"}', color='bright_white')
+        self.add_system_message(f'Muted: {"Yes" if user.muted else "No"}', color='bright_white')
+        if self.channel.userlist.leader == user:
+            self.add_system_message('Status: LEADER', color='bright_yellow')
+
+    async def cmd_afk(self, args):
+        """Set bot AFK status."""
+        if not args:
+            status = "On" if self.user.afk else "Off"
+            self.add_system_message(f'Current AFK status: {status}', color='bright_cyan')
+            return
+        
+        args_lower = args.lower()
+        if args_lower in ('on', 'yes', 'true', '1'):
+            await self.set_afk(True)
+            self.add_system_message('AFK status: On', color='bright_green')
+        elif args_lower in ('off', 'no', 'false', '0'):
+            await self.set_afk(False)
+            self.add_system_message('AFK status: Off', color='bright_green')
+        else:
+            self.add_system_message('Usage: /afk [on|off]', color='bright_red')
+
+    async def cmd_say(self, message):
+        """Send a chat message."""
+        if not message:
+            self.add_system_message('Usage: /say <message>', color='bright_red')
+            return
+        
+        await self.chat(message)
+
+    async def cmd_playlist(self, args):
+        """Show playlist."""
+        if not self.channel or not self.channel.playlist:
+            self.add_system_message('No playlist information available', color='bright_red')
+            return
+        
+        # Parse optional limit argument
+        limit = 10
+        if args:
+            try:
+                limit = int(args)
+            except ValueError:
+                self.add_system_message('Usage: /playlist [number]', color='bright_red')
+                return
+        
+        queue = self.channel.playlist.queue
+        self.add_system_message(f'━━━ Playlist ({len(queue)} items) ━━━', color='bright_cyan')
+        
+        for i, item in enumerate(queue[:limit], 1):
+            marker = "► " if item == self.channel.playlist.current else "  "
+            duration = self.format_duration(item.duration)
+            title = item.title[:50] + '...' if len(item.title) > 50 else item.title
+            self.add_system_message(f'{marker}{i}. {title} ({duration})', color='bright_white')
+        
+        if len(queue) > limit:
+            self.add_system_message(f'  ... and {len(queue) - limit} more', color='bright_black')
+
+    async def cmd_add(self, args):
+        """Add media to playlist."""
+        parts = args.split()
+        if not parts:
+            self.add_system_message('Usage: /add <url> [temp]  (temp: yes/no, default=yes)', color='bright_red')
+            return
+        
+        url = parts[0]
+        temp = True
+        
+        if len(parts) > 1:
+            temp_arg = parts[1].lower()
+            if temp_arg in ('no', 'false', '0', 'perm'):
+                temp = False
+        
+        try:
+            from lib.media_link import MediaLink
+            link = MediaLink.from_url(url)
+            await self.add_media(link, append=True, temp=temp)
+            temp_str = 'temporary' if temp else 'permanent'
+            self.add_system_message(f'Added: {url} ({temp_str})', color='bright_green')
+        except Exception as e:
+            self.add_system_message(f'Failed to add media: {e}', color='bright_red')
+
+    async def cmd_remove(self, args):
+        """Remove item from playlist."""
+        if not args:
+            self.add_system_message('Usage: /remove <position>', color='bright_red')
+            return
+        
+        try:
+            pos = int(args)
+        except ValueError:
+            self.add_system_message('Invalid position number', color='bright_red')
+            return
+        
+        if not self.channel or not self.channel.playlist:
+            self.add_system_message('No playlist available', color='bright_red')
+            return
+        
+        queue = self.channel.playlist.queue
+        if pos < 1 or pos > len(queue):
+            self.add_system_message(f'Position must be between 1 and {len(queue)}', color='bright_red')
+            return
+        
+        item = queue[pos - 1]
+        await self.remove_media(item)
+        self.add_system_message(f'Removed: {item.title}', color='bright_green')
+
+    async def cmd_move(self, args):
+        """Move playlist item."""
+        parts = args.split()
+        if len(parts) < 2:
+            self.add_system_message('Usage: /move <from_pos> <to_pos>', color='bright_red')
+            return
+        
+        try:
+            from_pos = int(parts[0])
+            to_pos = int(parts[1])
+        except ValueError:
+            self.add_system_message('Invalid position numbers', color='bright_red')
+            return
+        
+        if not self.channel or not self.channel.playlist:
+            self.add_system_message('No playlist available', color='bright_red')
+            return
+        
+        queue = self.channel.playlist.queue
+        if from_pos < 1 or from_pos > len(queue):
+            self.add_system_message(f'From position must be between 1 and {len(queue)}', color='bright_red')
+            return
+        if to_pos < 1 or to_pos > len(queue):
+            self.add_system_message(f'To position must be between 1 and {len(queue)}', color='bright_red')
+            return
+        
+        from_item = queue[from_pos - 1]
+        # After position in CyTube is the item before the target position
+        after_item = queue[to_pos - 2] if to_pos > 1 else None
+        
+        if after_item:
+            await self.move_media(from_item, after_item)
+            self.add_system_message(f'Moved "{from_item.title}" from position {from_pos} to {to_pos}', color='bright_green')
+        else:
+            self.add_system_message('Moving to beginning not yet supported', color='bright_red')
+
+    async def cmd_jump(self, args):
+        """Jump to playlist item."""
+        if not args:
+            self.add_system_message('Usage: /jump <position>', color='bright_red')
+            return
+        
+        try:
+            pos = int(args)
+        except ValueError:
+            self.add_system_message('Invalid position number', color='bright_red')
+            return
+        
+        if not self.channel or not self.channel.playlist:
+            self.add_system_message('No playlist available', color='bright_red')
+            return
+        
+        queue = self.channel.playlist.queue
+        if pos < 1 or pos > len(queue):
+            self.add_system_message(f'Position must be between 1 and {len(queue)}', color='bright_red')
+            return
+        
+        item = queue[pos - 1]
+        await self.set_current_media(item)
+        self.add_system_message(f'Jumped to: {item.title}', color='bright_green')
+
+    async def cmd_next(self):
+        """Skip to next item."""
+        if not self.channel or not self.channel.playlist:
+            self.add_system_message('No playlist available', color='bright_red')
+            return
+        
+        current = self.channel.playlist.current
+        if not current:
+            self.add_system_message('Nothing is currently playing', color='bright_red')
+            return
+        
+        queue = self.channel.playlist.queue
+        try:
+            current_idx = queue.index(current)
+            if current_idx + 1 < len(queue):
+                next_item = queue[current_idx + 1]
+                await self.set_current_media(next_item)
+                self.add_system_message(f'Skipped to: {next_item.title}', color='bright_green')
+            else:
+                self.add_system_message('Already at last item', color='bright_red')
+        except ValueError:
+            self.add_system_message('Current item not in queue', color='bright_red')
+
+    async def cmd_pause(self):
+        """Pause playback."""
+        await self.pause()
+        self.add_system_message('Paused', color='bright_green')
+
+    async def cmd_kick(self, args):
+        """Kick a user."""
+        parts = args.split(None, 1)
+        if not parts:
+            self.add_system_message('Usage: /kick <user> [reason]', color='bright_red')
+            return
+        
+        username = parts[0]
+        reason = parts[1] if len(parts) > 1 else ""
+        
+        await self.kick(username, reason)
+        reason_str = f': {reason}' if reason else ''
+        self.add_system_message(f'Kicked {username}{reason_str}', color='bright_green')
+
+    async def cmd_voteskip(self):
+        """Show voteskip status."""
+        if not self.channel:
+            self.add_system_message('No channel information available', color='bright_red')
+            return
+        
+        count = self.channel.voteskip_count
+        need = self.channel.voteskip_need
+        self.add_system_message(f'Voteskip: {count}/{need}', color='bright_cyan')
+
     def show_help(self):
         """Display help information about available commands."""
         help_lines = [
             '━━━ Available Commands ━━━',
-            '/help or /h - Show this help message',
-            '/current or /np - Show current media information',
-            '/debug - Show playlist queue debug info',
-            '/theme [name] - List themes or change theme',
-            '/pm <user> <msg> - Send a private message to a user',
-            '/me <action> - Send an action message (e.g., /me waves)',
-            '/clear - Clear all chat history from display',
-            '/scroll - Scroll to the bottom of chat',
-            '/togglejoins - Show/hide user join and quit messages',
-            '/quit or /q - Exit the chat client',
+            '',
+            '📋 General:',
+            '  /help or /h - Show this help message',
+            '  /info - Show bot & channel info',
+            '  /status - Show connection status & uptime',
+            '  /theme [name] - List themes or change theme',
+            '  /quit or /q - Exit the chat client',
+            '',
+            '👥 Users:',
+            '  /users - List all users in channel',
+            '  /user <name> - Show detailed user info',
+            '  /afk [on|off] - Set bot AFK status',
+            '',
+            '💬 Chat:',
+            '  /say <msg> - Send chat message',
+            '  /pm <user> <msg> - Send private message',
+            '  /me <action> - Send action message',
+            '  /clear - Clear chat history from display',
+            '  /scroll - Scroll to bottom of chat',
+            '  /togglejoins - Show/hide join/quit messages',
+            '',
+            '🎵 Playlist:',
+            '  /playlist [n] - Show queue (default 10)',
+            '  /current or /np - Show current media info',
+            '  /add <url> [temp] - Add video (temp: yes/no)',
+            '  /remove <#> - Remove item by position',
+            '  /move <#> <#> - Move item position',
+            '  /jump <#> - Jump to position',
+            '  /next or /skip - Skip to next item',
+            '',
+            '⚙️  Control:',
+            '  /pause - Pause playback',
+            '  /kick <user> [reason] - Kick user',
+            '  /voteskip - Show voteskip status',
+            '',
+            '🔍 Debug:',
+            '  /debug - Show playlist queue debug info',
             '',
             '━━━ Keybindings ━━━',
             'Enter - Send your message',
