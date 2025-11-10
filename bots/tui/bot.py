@@ -1247,6 +1247,26 @@ class TUIBot(Bot):
                 self.add_system_message(f'Playlist: {self.channel.playlist is not None if self.channel else "N/A"}', color='bright_black')
                 self.add_system_message(f'Current: {self.channel.playlist.current is not None if self.channel and self.channel.playlist else "N/A"}', color='bright_black')
                 self.add_system_message(f'Cached title: {self.current_media_title or "None"}', color='bright_black')
+        elif command == 'debug':
+            # Show detailed debug information about playlist
+            self.add_system_message('━━━ Playlist Debug Info ━━━', color='bright_cyan')
+            if self.channel and self.channel.playlist:
+                queue = self.channel.playlist.queue
+                self.add_system_message(f'Queue length: {len(queue)}', color='bright_white')
+                self.add_system_message(f'Pending UID: {self.pending_media_uid or "None"}', color='bright_white')
+                if queue:
+                    self.add_system_message('First 5 items in queue:', color='bright_cyan')
+                    for item in queue[:5]:
+                        self.add_system_message(f'  UID {item.uid}: {item.title[:40]}', color='bright_black')
+                # Try to manually find what should be current
+                if self.pending_media_uid and queue:
+                    try:
+                        item = self.channel.playlist.get(self.pending_media_uid)
+                        self.add_system_message(f'Found pending UID {self.pending_media_uid}: {item.title}', color='bright_green')
+                    except:
+                        self.add_system_message(f'Pending UID {self.pending_media_uid} NOT in queue', color='bright_red')
+            else:
+                self.add_system_message('No playlist available', color='bright_red')
         else:
             self.add_system_message(f'Unknown command: /{command}', color='bright_red')
 
@@ -1276,6 +1296,7 @@ class TUIBot(Bot):
             '━━━ Available Commands ━━━',
             '/help or /h - Show this help message',
             '/current or /np - Show current media information',
+            '/debug - Show playlist queue debug info',
             '/pm <user> <msg> - Send a private message to a user',
             '/me <action> - Send an action message (e.g., /me waves)',
             '/clear - Clear all chat history from display',
