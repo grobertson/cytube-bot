@@ -104,8 +104,13 @@ class TUIBot(Bot):
         self.show_join_quit = self.tui_config.get('show_join_quit', True)
         self.clock_format = self.tui_config.get('clock_format', '12h')  # '12h' or '24h'
         
+        # Store config file path for persistence
+        self.config_file = args[0] if args else 'config.json'
+        
         # Load theme
-        self.theme = self._load_theme(self.tui_config.get('theme', 'theme.json'))
+        theme_name = self.tui_config.get('theme', 'default')
+        self.current_theme_name = theme_name
+        self.theme = self._load_theme(theme_name)
 
         # Message parsing
         self.msg_parser = MessageParser()
@@ -271,23 +276,37 @@ class TUIBot(Bot):
             # Set current to None so we don't have stale data
             self.channel.playlist._current = None
 
-    def _load_theme(self, theme_file):
-        """Load theme configuration from JSON file.
+    def _load_theme(self, theme_name):
+        """Load theme configuration from themes directory.
         
         Args:
-            theme_file (str): Path to theme JSON file
+            theme_name (str): Theme name (without .json extension) or full path
             
         Returns:
             dict: Theme configuration
         """
-        theme_path = Path(__file__).parent / theme_file
+        # If it's a relative path to old theme.json, convert to default
+        if theme_name == 'theme.json':
+            theme_name = 'default'
+        
+        # Check if it's a full path or just a name
+        if '/' in theme_name or '\\' in theme_name:
+            theme_path = Path(theme_name)
+        else:
+            # Look in themes directory
+            theme_path = Path(__file__).parent / 'themes' / f'{theme_name}.json'
+        
         try:
             with open(theme_path, 'r') as f:
-                return json.load(f)
+                theme = json.load(f)
+                self.logger.info(f'Loaded theme: {theme.get("name", theme_name)}')
+                return theme
         except Exception as e:
-            self.logger.warning(f'Failed to load theme {theme_file}: {e}')
+            self.logger.warning(f'Failed to load theme {theme_name}: {e}')
             # Return default theme
             return {
+                'name': 'Fallback Theme',
+                'description': 'Built-in fallback theme',
                 'colors': {
                     'status_bar': {'background': 'cyan', 'text': 'black'},
                     'borders': 'bright_black',
@@ -321,6 +340,67 @@ class TUIBot(Bot):
                     'shadow_muted_marker': '[s]'
                 }
             }
+    
+    def list_themes(self):
+        """List all available themes from the themes directory.
+        
+        Returns:
+            list: List of tuples (theme_name, theme_info_dict)
+        """
+        themes_dir = Path(__file__).parent / 'themes'
+        themes = []
+        
+        if not themes_dir.exists():
+            return themes
+        
+        for theme_file in sorted(themes_dir.glob('*.json')):
+            try:
+                with open(theme_file, 'r') as f:
+                    theme_data = json.load(f)
+                    theme_name = theme_file.stem  # filename without .json
+                    themes.append((theme_name, theme_data))
+            except Exception as e:
+                self.logger.warning(f'Failed to read theme {theme_file}: {e}')
+        
+        return themes
+    
+    def change_theme(self, theme_name):
+        """Change to a different theme and persist the choice.
+        
+        Args:
+            theme_name (str): Name of theme to switch to
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        # Try to load the theme
+        new_theme = self._load_theme(theme_name)
+        
+        # Check if it loaded successfully (has required keys)
+        if 'colors' not in new_theme:
+            return False
+        
+        # Apply the theme
+        self.theme = new_theme
+        self.current_theme_name = theme_name
+        
+        # Save to config file
+        try:
+            config_path = Path(self.config_file)
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            
+            if 'tui' not in config:
+                config['tui'] = {}
+            config['tui']['theme'] = theme_name
+            
+            with open(config_path, 'w') as f:
+                json.dump(config, f, indent=2)
+            
+            return True
+        except Exception as e:
+            self.logger.warning(f'Failed to save theme preference: {e}')
+            return False
 
     def _handle_resize(self, signum=None, frame=None):
         """Handle terminal resize events.
@@ -1375,6 +1455,31 @@ class TUIBot(Bot):
                         self.add_system_message(f'Pending UID {self.pending_media_uid} NOT in queue', color='bright_red')
             else:
                 self.add_system_message('No playlist available', color='bright_red')
+        elif command == 'theme':
+            # Theme management
+            if not args:
+                # List available themes
+                themes = self.list_themes()
+                self.add_system_message('━━━ Available Themes ━━━', color='bright_cyan')
+                self.add_system_message(f'Current: {self.current_theme_name} - {self.theme.get("name", "Unknown")}', color='bright_green')
+                self.add_system_message('', color='white')
+                for theme_name, theme_data in themes:
+                    name = theme_data.get('name', theme_name)
+                    desc = theme_data.get('description', 'No description')
+                    marker = ' ⭐' if theme_name == self.current_theme_name else ''
+                    self.add_system_message(f'  {theme_name}{marker}', color='bright_white')
+                    self.add_system_message(f'    {desc}', color='bright_black')
+                self.add_system_message('', color='white')
+                self.add_system_message('Usage: /theme <name> to switch themes', color='bright_black')
+            else:
+                # Change theme
+                theme_name = args.strip().lower()
+                if self.change_theme(theme_name):
+                    self.add_system_message(f'Theme changed to: {self.theme.get("name", theme_name)}', color='bright_green')
+                    self.render_screen()  # Redraw with new theme
+                else:
+                    self.add_system_message(f'Failed to load theme: {theme_name}', color='bright_red')
+                    self.add_system_message('Use /theme to list available themes', color='bright_black')
         else:
             self.add_system_message(f'Unknown command: /{command}', color='bright_red')
 
@@ -1405,6 +1510,7 @@ class TUIBot(Bot):
             '/help or /h - Show this help message',
             '/current or /np - Show current media information',
             '/debug - Show playlist queue debug info',
+            '/theme [name] - List themes or change theme',
             '/pm <user> <msg> - Send a private message to a user',
             '/me <action> - Send an action message (e.g., /me waves)',
             '/clear - Clear all chat history from display',
