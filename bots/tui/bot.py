@@ -109,7 +109,7 @@ class TUIBot(Bot):
         self.history_pos = -1
         self.tab_completion_matches = []
         self.tab_completion_index = 0
-        self.tab_completion_prefix = ''
+        self.tab_completion_start = 0
 
         # Scrolling
         self.scroll_offset = 0
@@ -565,11 +565,12 @@ class TUIBot(Bot):
     def handle_tab_completion(self):
         """Handle tab completion for usernames and emotes.
 
-        Tab completion works for:
-        - Usernames after '@' (e.g., @ali<TAB> -> @alice)
-        - Emotes after ':' (e.g., :smi<TAB> -> :smile:)
+        CyTube-specific tab completion:
+        - Emotes: Start with '#' (e.g., #smi<TAB> -> #smile)
+        - Usernames: After 2+ alphanumeric characters anywhere in text (e.g., ali<TAB> -> alice)
         
-        Pressing Tab multiple times cycles through matches.
+        Pressing Tab multiple times cycles through matches alphabetically.
+        No matches = tab is ignored.
         """
         if not self.input_buffer:
             return
@@ -579,66 +580,63 @@ class TUIBot(Bot):
             self.tab_completion_index = (self.tab_completion_index + 1) % len(self.tab_completion_matches)
             match = self.tab_completion_matches[self.tab_completion_index]
             
-            # Replace from the prefix to the end
-            prefix_len = len(self.tab_completion_prefix)
-            self.input_buffer = self.input_buffer[:prefix_len] + match
+            # Replace from the start position to the end
+            self.input_buffer = self.input_buffer[:self.tab_completion_start] + match
             self.render_input()
             return
 
-        # Find what we're trying to complete
         cursor_pos = len(self.input_buffer)
         
-        # Look for @ or : before cursor
-        last_at = self.input_buffer.rfind('@')
-        last_colon = self.input_buffer.rfind(':')
-        
-        completion_type = None
-        start_pos = -1
-        
-        # Determine completion type based on which symbol is closer to cursor
-        if last_at > last_colon and last_at >= 0:
-            # Username completion
-            completion_type = 'username'
-            start_pos = last_at
-        elif last_colon >= 0:
-            # Emote completion
-            completion_type = 'emote'
-            start_pos = last_colon
-        
-        if completion_type is None or start_pos == -1:
-            return
-        
-        # Extract the partial text after the symbol
-        partial = self.input_buffer[start_pos + 1:cursor_pos]
-        
-        # Get matches based on type
-        matches = []
-        if completion_type == 'username':
-            matches = self._get_username_matches(partial)
-        elif completion_type == 'emote':
+        # Check for emote completion (starts with #)
+        last_hash = self.input_buffer.rfind('#')
+        if last_hash >= 0:
+            # Extract partial emote name after #
+            partial = self.input_buffer[last_hash + 1:cursor_pos]
             matches = self._get_emote_matches(partial)
-        
-        if not matches:
+            
+            if matches:
+                # Store state for cycling
+                self.tab_completion_matches = matches
+                self.tab_completion_index = 0
+                self.tab_completion_start = last_hash
+                
+                # Apply first match (includes the # prefix)
+                self.input_buffer = self.input_buffer[:last_hash] + matches[0]
+                self.render_input()
             return
         
-        # Store matches and prefix for cycling
-        self.tab_completion_matches = matches
-        self.tab_completion_index = 0
-        self.tab_completion_prefix = self.input_buffer[:start_pos + 1]
+        # Check for username completion (2+ alphanumeric chars)
+        # Find the start of the current word (working backwards from cursor)
+        start_pos = cursor_pos - 1
+        while start_pos >= 0 and self.input_buffer[start_pos].isalnum():
+            start_pos -= 1
+        start_pos += 1  # Move to first char of the word
         
-        # Apply first match
-        match = matches[0]
-        self.input_buffer = self.tab_completion_prefix + match
-        self.render_input()
+        # Extract the partial username
+        partial = self.input_buffer[start_pos:cursor_pos]
+        
+        # Only attempt username completion if we have 2+ characters
+        if len(partial) >= 2:
+            matches = self._get_username_matches(partial)
+            
+            if matches:
+                # Store state for cycling
+                self.tab_completion_matches = matches
+                self.tab_completion_index = 0
+                self.tab_completion_start = start_pos
+                
+                # Apply first match (no prefix or suffix)
+                self.input_buffer = self.input_buffer[:start_pos] + matches[0]
+                self.render_input()
 
     def _get_username_matches(self, partial):
         """Get list of usernames matching the partial string.
 
         Args:
-            partial (str): Partial username to match
+            partial (str): Partial username to match (minimum 2 characters)
 
         Returns:
-            list: List of matching usernames
+            list: List of matching usernames, sorted alphabetically
         """
         if not self.channel or not self.channel.userlist:
             return []
@@ -647,10 +645,14 @@ class TUIBot(Bot):
         matches = []
         
         for username in self.channel.userlist.keys():
+            # Skip usernames with underscores (CyTube bug workaround)
+            if '_' in username:
+                continue
+                
             if username.lower().startswith(partial_lower):
                 matches.append(username)
         
-        # Sort matches alphabetically
+        # Sort matches alphabetically (case-insensitive)
         matches.sort(key=str.lower)
         return matches
 
@@ -658,16 +660,20 @@ class TUIBot(Bot):
         """Get list of emotes matching the partial string.
 
         Args:
-            partial (str): Partial emote name to match
+            partial (str): Partial emote name to match (without # prefix)
 
         Returns:
-            list: List of matching emotes (with trailing :)
+            list: List of matching emotes (with # prefix, no suffix)
         """
-        # Common emotes - in a real implementation, this would come from channel config
+        # Common CyTube emotes - in a real implementation, this would come from channel config
+        # These are typical emotes found on CyTube channels
         common_emotes = [
-            'smile', 'sad', 'laugh', 'angry', 'heart', 'thumbsup', 'thumbsdown',
-            'thinking', 'wave', 'party', 'fire', 'cool', 'eyes', 'shrug',
-            'check', 'cross', 'question', 'exclamation', 'star', 'sparkles'
+            'smile', 'sad', 'laugh', 'lol', 'angry', 'rage', 'heart', 'love',
+            'thumbsup', 'thumbsdown', 'thinking', 'think', 'wave', 'hello',
+            'party', 'dance', 'fire', 'hot', 'cool', 'sunglasses', 'eyes',
+            'shrug', 'idk', 'check', 'yes', 'cross', 'no', 'question',
+            'exclamation', 'star', 'sparkles', 'kappa', 'pogchamp', 'lul',
+            'monkas', 'omegalul', 'pepega', 'pepe', 'sadge', 'pog', 'copium'
         ]
         
         partial_lower = partial.lower()
@@ -675,9 +681,11 @@ class TUIBot(Bot):
         
         for emote in common_emotes:
             if emote.startswith(partial_lower):
-                # Add trailing : for complete emote
-                matches.append(emote + ':')
+                # Return with # prefix, no suffix
+                matches.append('#' + emote)
         
+        # Sort matches alphabetically
+        matches.sort(key=str.lower)
         return matches
 
     def navigate_history_up(self):

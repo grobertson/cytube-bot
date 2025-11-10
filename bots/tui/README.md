@@ -120,9 +120,12 @@ python bot.py my_config.json
 
 ### Tips & Tricks
 
-1. **Tab completion**: Start typing a username after `@` or an emote after `:`, then press Tab to auto-complete. Press Tab again to cycle through matches.
-   - Example: Type `@ali` then Tab to complete to `@alice`
-   - Example: Type `:sm` then Tab to complete to `:smile:`
+1. **Tab completion**: CyTube-specific auto-completion for usernames and emotes:
+   - **Emotes**: Type `#` followed by at least one character, then press Tab (e.g., `#sm<Tab>` → `#smile`)
+   - **Usernames**: Type at least 2 alphanumeric characters anywhere in your message, then press Tab (e.g., `ali<Tab>` → `alice`)
+   - Press Tab multiple times to cycle through matches alphabetically
+   - No matches = Tab is silently ignored
+   - Note: Usernames with underscores are excluded due to a CyTube bug
 
 2. **Log files**: The TUI automatically creates two types of log files in the `bots/tui/logs/` directory:
    - `tui_errors.log` - Contains errors and warnings for troubleshooting
@@ -132,7 +135,7 @@ python bot.py my_config.json
 
 4. **Multiple instances**: Run multiple TUIs in different terminal windows/tabs for multi-channel monitoring
 
-2. **tmux/screen integration**: Perfect for long-running sessions
+5. **tmux/screen integration**: Perfect for long-running sessions
    ```bash
    tmux new -s cytube
    python -m bots.tui.bot config.json
