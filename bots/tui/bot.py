@@ -720,25 +720,31 @@ class TUIBot(Bot):
             bg_color = self.theme['colors']['status_bar']['background']
             text_color = self.theme['colors']['status_bar']['text']
             
-            # Build status components (clock first, left-justified)
-            parts = []
+            # Left side: Channel name and connection status
+            if self.channel:
+                left_text = f"📺 {self.channel.name}"
+            else:
+                left_text = "📺 Connecting..."
             
-            # Clock with configurable format (show seconds now)
+            # Right side: Clock with configurable format (show seconds)
             if self.clock_format == '12h':
                 current_time = datetime.now().strftime('%I:%M:%S %p')
             else:
                 current_time = datetime.now().strftime('%H:%M:%S')
-            parts.append(f"🕐 {current_time}")
+            right_text = f"🕐 {current_time}"
             
-            # Channel name and connection status
-            if self.channel:
-                parts.append(f"📺 {self.channel.name}")
+            # Calculate spacing to right-justify clock
+            left_len = len(left_text)
+            right_len = len(right_text)
+            available_space = self.term.width - left_len - right_len
+            
+            if available_space > 0:
+                status_line = left_text + ' ' * available_space + right_text
             else:
-                parts.append("📺 Connecting...")
+                # Not enough space, truncate left side
+                status_line = (left_text[:self.term.width - right_len - 3] + '...') + right_text
             
-            # Join status line with separator
-            status_line = "  │  ".join(parts)
-            # Pad to full width with spaces
+            # Ensure exact width
             if len(status_line) < self.term.width:
                 status_line = status_line + ' ' * (self.term.width - len(status_line))
             else:
