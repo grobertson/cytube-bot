@@ -217,6 +217,24 @@ class TUIBot(Bot):
             except (ValueError, AttributeError) as e:
                 self.logger.warning('_on_playlist: failed to set pending UID: %s', e)
 
+    def _on_changeMedia(self, _, data):
+        """Handle changeMedia event which contains current media info.
+        
+        This event arrives after setCurrent and contains the full media details
+        including title, duration, and playback state. Use this as the primary
+        source for current media info since it doesn't depend on the playlist queue.
+        """
+        try:
+            title = data.get('title', 'Unknown')
+            self.current_media_title = title
+            self.logger.info('changeMedia: %s', title)
+            self.add_system_message(f'Now playing: {title}', color='bright_blue')
+            self.render_top_status()
+            # Clear pending UID since we have the media info now
+            self.pending_media_uid = None
+        except Exception as e:
+            self.logger.warning('changeMedia failed: %s', e)
+
     def _on_setCurrent(self, _, data):
         """Override base Bot's setCurrent handler to handle missing UIDs gracefully.
         
