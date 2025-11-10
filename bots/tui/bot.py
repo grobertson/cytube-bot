@@ -160,6 +160,32 @@ class TUIBot(Bot):
         self.on('playlist', self.handle_playlist)
         self.on('login', self.handle_login)
 
+    def _on_queue(self, _, data):
+        """Override base Bot's queue handler to add retry logic.
+        
+        Called when the server adds a single item to the playlist.
+        After the base class adds it, check if it matches our pending media UID.
+        """
+        # Call parent to add the item
+        super()._on_queue(_, data)
+        
+        # If we have a pending media UID, check if this is the item we're waiting for
+        if self.pending_media_uid:
+            item_uid = data.get('item', {}).get('uid')
+            if item_uid == self.pending_media_uid:
+                self.logger.info('_on_queue: found pending UID %s, setting current', self.pending_media_uid)
+                try:
+                    item = self.channel.playlist.get(self.pending_media_uid)
+                    if item:
+                        self.channel.playlist._current = item
+                        self.current_media_title = str(item.title)
+                        self.add_system_message(f'Now playing: {item.title}', color='bright_blue')
+                        self.render_top_status()
+                        self.pending_media_uid = None
+                        self.logger.info('_on_queue: successfully set current to %s', item.title)
+                except (ValueError, AttributeError) as e:
+                    self.logger.warning('_on_queue: failed to set current: %s', e)
+
     def _on_playlist(self, _, data):
         """Override base Bot's playlist handler to add debugging and retry logic.
         
