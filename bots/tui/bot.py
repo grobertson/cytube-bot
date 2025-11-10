@@ -160,6 +160,37 @@ class TUIBot(Bot):
         self.on('playlist', self.handle_playlist)
         self.on('login', self.handle_login)
 
+    def _on_playlist(self, _, data):
+        """Override base Bot's playlist handler to add debugging and retry logic.
+        
+        Called when the server sends the full playlist. After the base class
+        populates the queue, we check if there's a pending media UID to retry.
+        """
+        # Log what we're receiving
+        self.logger.info('_on_playlist: received %d items', len(data) if data else 0)
+        
+        # Call parent to populate the queue
+        super()._on_playlist(_, data)
+        
+        # Log the queue state after population
+        queue_len = len(self.channel.playlist.queue) if self.channel.playlist.queue else 0
+        self.logger.info('_on_playlist: queue now has %d items', queue_len)
+        
+        # If we have a pending media UID, try to set it now
+        if self.pending_media_uid and queue_len > 0:
+            self.logger.info('_on_playlist: retrying pending UID %s', self.pending_media_uid)
+            try:
+                item = self.channel.playlist.get(self.pending_media_uid)
+                if item:
+                    self.channel.playlist._current = item
+                    self.current_media_title = str(item.title)
+                    self.add_system_message(f'Now playing: {item.title}', color='bright_blue')
+                    self.render_top_status()
+                    self.pending_media_uid = None
+                    self.logger.info('_on_playlist: successfully set current to %s', item.title)
+            except (ValueError, AttributeError) as e:
+                self.logger.warning('_on_playlist: failed to set pending UID: %s', e)
+
     def _on_setCurrent(self, _, data):
         """Override base Bot's setCurrent handler to handle missing UIDs gracefully.
         
