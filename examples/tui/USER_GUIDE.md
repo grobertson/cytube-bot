@@ -28,15 +28,16 @@ A terminal-based chat client for CyTube channels, inspired by classic IRC client
 
 ### First Run
 
-1. Copy and edit the configuration file:
+1. **Create your config file:**
    ```bash
-   cp bots/tui/config.yaml bots/tui/my_config.yaml
-   # Edit my_config.yaml with your credentials
+   cp examples/tui/config.yaml examples/tui/my_config.yaml
    ```
 
-2. Run the TUI client:
+2. **Edit the config** (see [CONFIG.md](CONFIG.md) for all options)
+
+3. **Run the TUI:**
    ```bash
-   python -m bots.tui.bot bots/tui/my_config.yaml
+   python -m examples.tui.bot examples/tui/my_config.yaml
    ```
 
 ## Basic Usage

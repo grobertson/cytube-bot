@@ -79,7 +79,7 @@ pip install -r requirements.txt blessed
 
 1. Copy the example config:
    ```bash
-   cd bots/tui
+   cd examples/tui
    cp config.json my_config.json
    ```
 
@@ -127,12 +127,14 @@ See `theme.json` for the full structure.
 ### Basic Usage
 
 ```bash
-# From the project root
-python -m bots.tui.bot bots/tui/my_config.json
+### Running
 
-# Or from the bots/tui directory
-cd bots/tui
-python bot.py my_config.json
+From project root:
+```bash
+python -m examples.tui.bot examples/tui/my_config.json
+```
+
+Or from the examples/tui directory:
 ```
 
 ### Commands
@@ -156,7 +158,7 @@ python bot.py my_config.json
    - No matches = Tab is silently ignored
    - Note: Usernames with underscores are excluded due to a CyTube bug
 
-2. **Log files**: The TUI automatically creates two types of log files in the `bots/tui/logs/` directory:
+2. **Log files**: The TUI automatically creates two types of log files in the `examples/tui/logs/` directory:
    - `tui_errors.log` - Contains errors and warnings for troubleshooting
    - `chat_YYYYMMDD_HHMMSS.log` - Complete chat history with timestamps
    
@@ -298,7 +300,7 @@ The TUI bot extends the base `Bot` class from `lib/bot.py` with terminal-specifi
 ```python
 Bot (lib/bot.py)
   ↓ extends
-TUIBot (bots/tui/bot.py)
+TUIBot (examples/tui/bot.py)
   ├── Terminal rendering (blessed)
   ├── Input handling (keyboard events)
   ├── Chat history management (deque)
