@@ -9,7 +9,8 @@ venv/
 *.egg-info
 .pytest_cache
 .coverage
-
+config.yaml
+config.json
 # Build artifacts
 /build
 /dist
@@ -35,3 +36,4 @@ bots/**/config.json
 *.bak
 *.swp
 *~
+bots/tui/config.yaml
