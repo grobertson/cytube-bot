@@ -8,5 +8,23 @@
   "chat_log_file": "chat.log",
   "media_log_file": "media.log",
   "shell": "localhost:5555",
-  "db": "bot_data.db"
+  "db": "bot_data.db",
+  "llm": {
+    "enabled": false,
+    "provider": "ollama",
+    "system_prompt_file": "prompt.md",
+    "max_context_messages": 10,
+    "temperature": 0.7,
+    "max_tokens": 500,
+    "ollama": {
+      "base_url": "http://localhost:11434",
+      "model": "llama3"
+    },
+    "openrouter": {
+      "api_key": "YOUR_OPENROUTER_API_KEY",
+      "model": "anthropic/claude-3-haiku",
+      "site_url": "https://your-site.com",
+      "site_name": "Rosey CyTube Bot"
+    }
+  }
 }
