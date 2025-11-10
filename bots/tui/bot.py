@@ -132,6 +132,9 @@ class TUIBot(Bot):
         self.status_message = 'Connecting...'
         self.session_start = datetime.now()
         self.current_media_title = None  # Cache current media title for display
+        self.current_media_duration = None  # Total duration in seconds
+        self.current_media_start_time = None  # When the media started playing
+        self.current_media_paused = False  # Whether media is paused
         self.pending_media_uid = None  # Store UID if setCurrent happens before queue
         
         # Terminal size tracking (for Windows resize detection)
@@ -226,8 +229,21 @@ class TUIBot(Bot):
         """
         try:
             title = data.get('title', 'Unknown')
+            seconds = data.get('seconds', 0)  # Total duration
+            current_time = data.get('currentTime', 0)  # Current position
+            paused = data.get('paused', False)
+            
+            # Store media info
             self.current_media_title = title
-            self.logger.info('changeMedia: %s', title)
+            self.current_media_duration = seconds
+            self.current_media_paused = paused
+            
+            # Calculate when media started (current time in video - elapsed real time = start time)
+            import time as time_module
+            self.current_media_start_time = time_module.time() - current_time
+            
+            self.logger.info('changeMedia: %s (duration: %ds, at: %ds, paused: %s)', 
+                           title, seconds, int(current_time), paused)
             self.add_system_message(f'Now playing: {title}', color='bright_blue')
             self.render_top_status()
             # Clear pending UID since we have the media info now
@@ -694,31 +710,30 @@ class TUIBot(Bot):
                 except Exception:
                     pass
             
-            # Media runtime and remaining
-            if self.channel and self.channel.playlist and self.channel.playlist.current:
-                current = self.channel.playlist.current
-                # Check if duration is available
-                if hasattr(current, 'duration') and current.duration:
-                    # Total runtime
-                    total_mins, total_secs = divmod(current.duration, 60)
-                    if total_mins >= 60:
-                        total_hours = total_mins // 60
-                        total_mins = total_mins % 60
-                        left_parts.append(f"⏱  Runtime: {total_hours}h {total_mins}m")
-                    else:
-                        left_parts.append(f"⏱  Runtime: {total_mins}m {total_secs}s")
-                    
-                    # Time remaining (if we have current time)
-                    if hasattr(current, 'seconds') and current.seconds is not None:
-                        remaining = current.duration - current.seconds
-                        if remaining > 0:
-                            rem_mins, rem_secs = divmod(int(remaining), 60)
-                            if rem_mins >= 60:
-                                rem_hours = rem_mins // 60
-                                rem_mins = rem_mins % 60
-                                left_parts.append(f"⏳ Remaining: {rem_hours}h {rem_mins}m")
-                            else:
-                                left_parts.append(f"⏳ Remaining: {rem_mins}m {rem_secs}s")
+            # Media runtime and remaining - use cached values from changeMedia
+            if self.current_media_duration:
+                # Total runtime
+                total_mins, total_secs = divmod(int(self.current_media_duration), 60)
+                if total_mins >= 60:
+                    total_hours = total_mins // 60
+                    total_mins = total_mins % 60
+                    left_parts.append(f"⏱  Runtime: {total_hours}h {total_mins}m")
+                else:
+                    left_parts.append(f"⏱  Runtime: {total_mins}m {total_secs}s")
+                
+                # Calculate current position and time remaining
+                if self.current_media_start_time and not self.current_media_paused:
+                    import time as time_module
+                    elapsed = time_module.time() - self.current_media_start_time
+                    remaining = self.current_media_duration - elapsed
+                    if remaining > 0:
+                        rem_mins, rem_secs = divmod(int(remaining), 60)
+                        if rem_mins >= 60:
+                            rem_hours = rem_mins // 60
+                            rem_mins = rem_mins % 60
+                            left_parts.append(f"⏳ Remaining: {rem_hours}h {rem_mins}m")
+                        else:
+                            left_parts.append(f"⏳ Remaining: {rem_mins}m {rem_secs}s")
             
             # Right side parts (will be right-justified)
             right_parts = []
