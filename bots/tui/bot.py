@@ -35,6 +35,7 @@ from collections import deque
 from datetime import datetime, timedelta
 import asyncio
 import logging
+import time
 
 # Add the project root to the Python path
 project_root = Path(__file__).parent.parent.parent
@@ -129,12 +130,18 @@ class TUIBot(Bot):
         self.running = False
         self.status_message = 'Connecting...'
         self.session_start = datetime.now()
+        
+        # Terminal size tracking (for Windows resize detection)
+        self.last_terminal_size = (self.term.width, self.term.height)
+        self.is_windows = platform.system() == 'Windows'
+        self.last_size_check = time.time()
+        self.size_check_interval = 10.0  # Check every 10 seconds on Windows
 
         # Setup logging to file
         self._setup_logging()
         
         # Setup resize handler (Unix only - Windows doesn't support SIGWINCH)
-        if platform.system() != 'Windows' and hasattr(signal, 'SIGWINCH'):
+        if not self.is_windows and hasattr(signal, 'SIGWINCH'):
             signal.signal(signal.SIGWINCH, self._handle_resize)
 
         # Register event handlers
@@ -197,16 +204,29 @@ class TUIBot(Bot):
                 }
             }
 
-    def _handle_resize(self, signum, frame):
+    def _handle_resize(self, signum=None, frame=None):
         """Handle terminal resize events.
         
         Args:
-            signum: Signal number
-            frame: Current stack frame
+            signum: Signal number (optional, for signal handler)
+            frame: Current stack frame (optional, for signal handler)
         """
         # Redraw the entire screen
         if self.running:
             self.render_screen()
+    
+    def _check_terminal_size(self):
+        """Check if terminal size has changed (for Windows polling).
+        
+        Returns:
+            bool: True if size changed, False otherwise
+        """
+        current_size = (self.term.width, self.term.height)
+        if current_size != self.last_terminal_size:
+            self.last_terminal_size = current_size
+            self._handle_resize()
+            return True
+        return False
 
     def _setup_logging(self):
         """Setup file logging for errors and chat history."""
@@ -753,6 +773,13 @@ class TUIBot(Bot):
         """
         with self.term.cbreak(), self.term.hidden_cursor():
             while self.running:
+                # Periodic terminal size check on Windows (every 10 seconds)
+                if self.is_windows:
+                    current_time = time.time()
+                    if current_time - self.last_size_check >= self.size_check_interval:
+                        self._check_terminal_size()
+                        self.last_size_check = current_time
+                
                 key = self.term.inkey(timeout=0.1)
 
                 if not key:
