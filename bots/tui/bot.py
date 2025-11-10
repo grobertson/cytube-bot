@@ -483,22 +483,6 @@ class TUIBot(Bot):
                 current_time = datetime.now().strftime('%H:%M')
             parts.append(f"🕐 {current_time}")
             
-            # Current media - "Now Playing: <title>"
-            # Try to get from current playlist, otherwise use cached title
-            title = None
-            if self.channel and self.channel.playlist and self.channel.playlist.current:
-                current = self.channel.playlist.current
-                # The current object should have a title attribute
-                if hasattr(current, 'title'):
-                    title = str(current.title)
-            elif self.current_media_title:
-                # Use cached title if current isn't available
-                title = self.current_media_title
-            
-            if title:
-                title = title[:50] + '...' if len(title) > 50 else title
-                parts.append(f"▶ Now Playing: {title}")
-            
             # Join status line with separator
             status_line = "  │  ".join(parts)
             # Pad to full width with spaces
@@ -522,6 +506,22 @@ class TUIBot(Bot):
             
             # Left side parts
             left_parts = []
+            
+            # Current media title - "Now Playing: <title>"
+            # Try to get from current playlist, otherwise use cached title
+            title = None
+            if self.channel and self.channel.playlist and self.channel.playlist.current:
+                current = self.channel.playlist.current
+                # The current object should have a title attribute
+                if hasattr(current, 'title'):
+                    title = str(current.title)
+            elif self.current_media_title:
+                # Use cached title if current isn't available
+                title = self.current_media_title
+            
+            if title:
+                title = title[:40] + '...' if len(title) > 40 else title
+                left_parts.append(f"▶ {title}")
             
             # Viewer count vs chat users
             if self.channel and hasattr(self.channel, 'userlist') and self.channel.userlist:
