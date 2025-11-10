@@ -5,12 +5,12 @@
 domain: https://cytu.be
 
 # Channel to join
-channel: 420Grindhouse
+channel: Mychannel
 
 # Bot credentials: [username, password]
 user:
-  - SaveTheRobots
-  - wz6Kz.#2gXWw4B@
+  - UserName
+  - Password
 
 # Socket.IO settings
 response_timeout: 1
