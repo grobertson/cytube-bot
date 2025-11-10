@@ -9,7 +9,7 @@ venv/
 *.egg-info
 .pytest_cache
 .coverage
-config.yaml
+#config.yaml
 config.json
 # Build artifacts
 /build

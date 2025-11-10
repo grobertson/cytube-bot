@@ -9,8 +9,8 @@ channel: 420Grindhouse
 
 # Bot credentials: [username, password]
 user:
-  - SaveTheRobots
-  - wz6Kz.#2gXWw4B@
+    - username
+    - password
 
 # Socket.IO settings
 response_timeout: 1
