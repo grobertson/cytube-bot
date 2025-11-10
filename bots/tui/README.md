@@ -7,14 +7,21 @@ A full-featured terminal user interface (TUI) for CyTube chat rooms, inspired by
 ## Features
 
 ### 🎨 Rich Terminal Interface
+
 - **Full-color support** using the blessed library
-- **Username colorization** - each user gets a consistent color
+- **Rank-based coloring** - brighter colors for moderators and above
 - **Rank indicators** - visual symbols for moderators, admins, etc.
 - **Status bar** - connection info, channel name, user count
-- **Live user list** - shows all users with their ranks and status
+- **Smart user list** - grouped by rank (active users), AFK at bottom, with status indicators:
+  - `[m]` - Muted user
+  - `[s]` - Shadow muted user
+  - `[*]` - Channel leader
+  - *Italics* - AFK users
 
 ### 💬 Chat Features
+
 - **Scrollable history** - maintains up to 1000 messages
+- **Mention highlighting** - messages containing your username are highlighted
 - **Private messages** - send and receive PMs with visual indicators
 - **Command history** - navigate with up/down arrows
 - **Action messages** - `/me` command support
@@ -35,16 +42,17 @@ A full-featured terminal user interface (TUI) for CyTube chat rooms, inspired by
 
 Unlike BitchX and IRCII, this TUI includes:
 
-1. **Dynamic color palette** - Automatically assigns distinct colors to users
+1. **Rank-based coloring** - Brighter colors for moderators and admins
 2. **UTF-8 support** - Full Unicode character support
 3. **Async architecture** - Non-blocking, responsive interface
 4. **Smart scrolling** - Auto-scrolls to new messages, manual scroll supported
 5. **Responsive layout** - Adapts to terminal size
 6. **Visual hierarchy** - Clear separation of UI elements with borders and colors
-7. **AFK indicators** - Dimmed display for away users
-8. **Leader highlighting** - Bold display for video leader
-9. **Tab completion** - Auto-complete usernames and emotes
-10. **Persistent logging** - Chat and error logs saved to disk
+7. **Intelligent user list** - Active users grouped by rank, AFK users at bottom
+8. **Status indicators** - Muted, shadow-muted, and leader markers
+9. **Mention highlighting** - Your username mentions are highlighted
+10. **Tab completion** - Auto-complete usernames and emotes
+11. **Persistent logging** - Chat and error logs saved to disk
 
 ## Installation
 

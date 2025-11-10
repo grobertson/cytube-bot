@@ -303,7 +303,8 @@ class TUIBot(Bot):
             _ (str): Event name (unused)
             data (dict): Media data from CyTube (can be uid or PlaylistItem)
         """
-        if self.channel.playlist.current:
+        # Validate that playlist and current item exist before accessing
+        if self.channel and self.channel.playlist and self.channel.playlist.current:
             title = self.channel.playlist.current.title
             self.add_system_message(f'Now playing: {title}', color='bright_blue')
 
@@ -411,7 +412,13 @@ class TUIBot(Bot):
                 if len(message) > max_msg_width:
                     message = message[:max_msg_width - 3] + '...'
 
-                print(f'{time_str} {username_str}{message}', end='', flush=True)
+                # Check if my username is mentioned in the message
+                message_display = message
+                if self.user and self.user.name and self.user.name in message:
+                    # Highlight the entire message with reverse video
+                    message_display = self.term.reverse(message)
+
+                print(f'{time_str} {username_str}{message_display}', end='', flush=True)
 
         # Clear any remaining lines
         for i in range(len(visible_messages), chat_height):
@@ -420,7 +427,16 @@ class TUIBot(Bot):
                 print(' ' * chat_width, end='', flush=True)
 
     def render_users(self):
-        """Render the user list on the right side of the screen."""
+        """Render the user list on the right side of the screen.
+        
+        Features:
+        - Color coding by rank (brighter for mods+)
+        - AFK users in italics, pushed to bottom, alphabetical
+        - Active users grouped by rank
+        - Muted users marked with [m]
+        - Shadow muted users marked with [s]
+        - Leader marked with [*]
+        """
         if not self.channel or not self.channel.userlist:
             return
 
@@ -440,11 +456,24 @@ class TUIBot(Bot):
             with self.term.location(user_list_x - 1, i):
                 print(self.term.bright_black('│'), end='', flush=True)
 
-        # Sort users by rank (descending) then by name
-        sorted_users = sorted(
-            self.channel.userlist.values(),
-            key=lambda u: (-u.rank, u.name.lower())
-        )
+        # Separate active and AFK users
+        active_users = []
+        afk_users = []
+        
+        for user in self.channel.userlist.values():
+            if user.afk:
+                afk_users.append(user)
+            else:
+                active_users.append(user)
+        
+        # Sort active users by rank (descending) then by name
+        active_users.sort(key=lambda u: (-u.rank, u.name.lower()))
+        
+        # Sort AFK users alphabetically only
+        afk_users.sort(key=lambda u: u.name.lower())
+        
+        # Combine lists: active first, then AFK
+        sorted_users = active_users + afk_users
 
         # Render users
         for i, user in enumerate(sorted_users[:chat_height - 1]):
@@ -453,27 +482,44 @@ class TUIBot(Bot):
                 # Get rank symbol
                 rank_symbol = self.RANK_SYMBOLS.get(int(user.rank), ' ')
 
-                # Get username color
-                color = self.get_username_color(user.name)
-                color_func = getattr(self.term, color, self.term.white)
+                # Determine color based on rank
+                if user.rank >= 2:  # Moderator and above
+                    color_func = self.term.bright_yellow
+                elif user.rank >= 1:  # Registered
+                    color_func = self.term.green
+                else:  # Guest
+                    color_func = self.term.white
 
-                # Format: @username or  username
+                # Build username string
                 user_str = f'{rank_symbol}{user.name}'
+                
+                # Add mute indicators
+                if user.smuted:
+                    user_str += '[s]'
+                elif user.muted:
+                    user_str += '[m]'
+                
+                # Add leader indicator
+                if self.channel.userlist.leader == user:
+                    user_str += '[*]'
 
                 # Truncate if too long
                 max_width = user_list_width - 2
                 if len(user_str) > max_width:
                     user_str = user_str[:max_width - 1] + '…'
 
-                # Highlight leader with bold
-                if self.channel.userlist.leader == user:
-                    user_str = self.term.bold(user_str)
-
-                # Dim AFK users
+                # Apply formatting for AFK users (italic instead of dim)
                 if user.afk:
-                    user_str = self.term.dim(user_str)
+                    try:
+                        user_str = self.term.italic(user_str)
+                    except (TypeError, AttributeError):
+                        # Fallback if italic not supported
+                        pass
 
-                print(f' {color_func(user_str)}'.ljust(user_list_width - 1), end='', flush=True)
+                # Apply color
+                colored_str = color_func(user_str)
+                
+                print(f' {colored_str}'.ljust(user_list_width - 1), end='', flush=True)
 
         # Clear remaining lines
         for i in range(len(sorted_users), chat_height - 1):
