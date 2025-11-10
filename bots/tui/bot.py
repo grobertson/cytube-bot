@@ -136,6 +136,8 @@ class TUIBot(Bot):
         self.is_windows = platform.system() == 'Windows'
         self.last_size_check = time.time()
         self.size_check_interval = 10.0  # Check every 10 seconds on Windows
+        self.last_status_update = time.time()
+        self.status_update_interval = 1.0  # Update status bars every second
 
         # Setup logging to file
         self._setup_logging()
@@ -477,7 +479,7 @@ class TUIBot(Bot):
             session_duration = datetime.now() - self.session_start
             hours, remainder = divmod(int(session_duration.total_seconds()), 3600)
             minutes, seconds = divmod(remainder, 60)
-            parts.append(f"⏱ {hours:02d}:{minutes:02d}:{seconds:02d}")
+            parts.append(f"⏱  {hours:02d}:{minutes:02d}:{seconds:02d}")
             
             # Current media
             if self.channel and self.channel.playlist and self.channel.playlist.current:
@@ -779,6 +781,15 @@ class TUIBot(Bot):
                     if current_time - self.last_size_check >= self.size_check_interval:
                         self._check_terminal_size()
                         self.last_size_check = current_time
+                
+                # Periodic status bar update (every second)
+                current_time = time.time()
+                if current_time - self.last_status_update >= self.status_update_interval:
+                    self.render_top_status()
+                    self.render_bottom_status()
+                    # Restore cursor to input position
+                    self.render_input()
+                    self.last_status_update = current_time
                 
                 key = self.term.inkey(timeout=0.1)
 
@@ -1095,20 +1106,22 @@ class TUIBot(Bot):
     def show_help(self):
         """Display help information about available commands."""
         help_lines = [
-            'Available Commands:',
-            '/help - Show this help',
-            '/pm <user> <msg> - Send private message',
-            '/me <action> - Send action message',
-            '/clear - Clear chat history',
-            '/scroll - Scroll to bottom',
-            '/togglejoins - Toggle join/quit messages',
-            '/quit - Exit',
+            '━━━ Available Commands ━━━',
+            '/help or /h - Show this help message',
+            '/pm <user> <msg> - Send a private message to a user',
+            '/me <action> - Send an action message (e.g., /me waves)',
+            '/clear - Clear all chat history from display',
+            '/scroll - Scroll to the bottom of chat',
+            '/togglejoins - Show/hide user join and quit messages',
+            '/quit or /q - Exit the chat client',
             '',
-            'Keybindings:',
-            'Enter - Send message',
-            'Tab - Username/emote completion',
-            'Up/Down - Navigate history',
-            'PgUp/PgDn or Ctrl+Up/Down - Scroll chat',
+            '━━━ Keybindings ━━━',
+            'Enter - Send your message',
+            'Tab - Auto-complete usernames and #emotes',
+            'Up/Down - Navigate through command history',
+            'PgUp/PgDn - Scroll chat history up/down',
+            'Ctrl+Up/Down - Alternative scroll keys',
+            'Ctrl+C - Force quit',
         ]
 
         info_color = self.theme['colors']['messages']['system_info']
