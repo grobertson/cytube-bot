@@ -157,6 +157,22 @@ class TUIBot(Bot):
         self.on('setCurrent', self.handle_media_change)
         self.on('login', self.handle_login)
 
+    def _on_setCurrent(self, _, data):
+        """Override base Bot's setCurrent handler to handle missing UIDs gracefully.
+        
+        The base handler tries to look up UIDs in the playlist queue, but sometimes
+        setCurrent is called before the item is in the queue, causing a ValueError.
+        This override catches that error and logs it without crashing.
+        """
+        try:
+            # Call the parent class handler
+            super()._on_setCurrent(_, data)
+        except ValueError as e:
+            # UID not in playlist queue yet - log and continue
+            self.logger.warning('setCurrent: Item not in queue yet: %s', e)
+            # Set current to None so we don't have stale data
+            self.channel.playlist._current = None
+
     def _load_theme(self, theme_file):
         """Load theme configuration from JSON file.
         
