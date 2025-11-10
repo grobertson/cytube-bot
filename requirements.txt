@@ -7,9 +7,11 @@ Flask>=3.0.0
 
 # Optional dependencies
 PySocks>=1.7.1  # For proxy support
+PyYAML>=6.0    # For YAML config files (optional, JSON still works)
 
 # Bot-specific dependencies
 markovify>=0.9.4  # For markov bot
+blessed>=1.20.0   # For TUI bot
 
 # Development dependencies (optional)
 pytest>=8.2.2

@@ -6,6 +6,12 @@ import logging
 
 from lib import SocketIO, set_proxy
 
+try:
+    import yaml
+    HAS_YAML = True
+except ImportError:
+    HAS_YAML = False
+
 
 class RobustFileHandler(logging.FileHandler):
     """FileHandler that gracefully handles flush errors on Windows"""
@@ -93,11 +99,11 @@ def configure_proxy(conf):
 
 
 def get_config():
-    """Load and parse configuration from JSON file specified in command line
+    """Load and parse configuration from JSON or YAML file specified in command line
 
     Returns:
         Tuple of (conf, kwargs) where:
-            conf: Full configuration dictionary from JSON file
+            conf: Full configuration dictionary from config file
             kwargs: Bot initialization parameters extracted from config
 
     Exits:
@@ -108,9 +114,21 @@ def get_config():
         print('usage: %s <config file>' % sys.argv[0], file=sys.stderr)
         sys.exit(1)
 
-    # Load JSON configuration file
-    with open(sys.argv[1], 'r') as fp:
-        conf = json.load(fp)
+    config_file = sys.argv[1]
+    
+    # Determine file format from extension
+    if config_file.endswith(('.yaml', '.yml')):
+        if not HAS_YAML:
+            print('ERROR: PyYAML is required for YAML config files', file=sys.stderr)
+            print('Install with: pip install pyyaml', file=sys.stderr)
+            sys.exit(1)
+        # Load YAML configuration file
+        with open(config_file, 'r', encoding='utf-8') as fp:
+            conf = yaml.safe_load(fp)
+    else:
+        # Load JSON configuration file (default)
+        with open(config_file, 'r', encoding='utf-8') as fp:
+            conf = json.load(fp)
 
     # Extract connection retry settings
     retry = conf.get('retry', 0)  # Number of connection retries
