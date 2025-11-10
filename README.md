@@ -1,21 +1,24 @@
-# CyTube Bot - Monolithic Edition
+# Rosey - A Python CyTube Bot Framework
 
-A Python-based framework for building bots that interact with [CyTube](https://github.com/calzoneman/sync) channels. This is a refactored, monolithic version designed for easier development and customization without the complexity of installable packages.
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/grobertson/Rosey-Robot/releases)
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+
+**Rosey** is a Python-based framework for building bots that interact with [CyTube](https://github.com/calzoneman/sync) channels. Designed as a monolithic application for easier development and customization, Rosey provides a feature-rich main bot along with simple examples to help you get started.
 
 ## 🎯 Project Goals
 
-This project aims to provide:
-- **Monolithic Architecture**: All core library code lives alongside bot implementations for easier development and debugging
-- **Modern Python**: Updated for Python 3.8+ with proper asyncio patterns
-- **Example Bots**: Multiple working examples (echo, logging, markov chain)
-- **LLM Integration** *(Coming Soon)*: Non-intrusive AI-powered chat interactions using LLM APIs
+Rosey aims to provide:
+- **Feature-Rich Main Bot**: Full-featured CyTube bot with shell control, logging, and database tracking
+- **Simple Examples**: Multiple working examples (TUI chat client, logging, echo, markov)
+- **Modern Python**: Built for Python 3.8+ with proper asyncio patterns
+- **Monolithic Architecture**: All core library code alongside bot implementations for easier development
 - **Playlist Management**: Full support for CyTube playlist operations
-- **REPL Interface**: Built-in shell for interactive bot control
+- **Shell Interface**: Built-in remote control for bot management
 
 ## 📁 Project Structure
 
 ```
-cytube-bot/
+rosey-robot/
 ├── lib/                    # Core CyTube interaction library
 │   ├── bot.py             # Main bot class
 │   ├── channel.py         # Channel state management
@@ -27,15 +30,22 @@ cytube-bot/
 │   ├── error.py           # Custom exceptions
 │   └── proxy.py           # Proxy support
 │
-├── bots/                  # Bot implementations
-│   ├── markov/           # Markov chain text generation bot
-│   ├── echo/             # Simple echo bot
-│   └── log/              # Channel logging bot
+├── bot/                   # Main Rosey bot application
+│   └── rosey/            # Rosey - full-featured CyTube bot
+│       ├── rosey.py      # Main bot script
+│       ├── prompt.md     # AI personality prompt (for future LLM integration)
+│       └── config.json.dist  # Example configuration
+│
+├── examples/              # Example bot implementations
+│   ├── tui/              # Terminal UI chat client ⭐ Featured!
+│   ├── log/              # Simple chat/media logging bot
+│   ├── echo/             # Echo bot example
+│   └── markov/           # Markov chain text generation bot
 │
 ├── common/                # Shared utilities
 │   ├── config.py         # Configuration management
 │   ├── database.py       # SQLite database for stats tracking
-│   └── shell.py          # Interactive REPL shell
+│   └── shell.py          # Interactive shell for remote control
 │
 ├── web/                   # Web status dashboard
 │   ├── status_server.py  # Flask web server
@@ -60,25 +70,43 @@ cd cytube-bot
 pip install -r requirements.txt
 ```
 
-### Running a Bot
+### Running Rosey (Main Bot)
 
-Each bot requires a `config.json` file. See the example configurations in each bot directory.
+Rosey is the full-featured CyTube bot with logging, shell control, and database tracking:
 
-**Echo Bot** (repeats messages back):
 ```bash
-cd bots/echo
+cd bot/rosey
+python rosey.py config.json
+```
+
+Copy `config.json.dist` to `config.json` and customize with your credentials.
+
+### Running Examples
+
+Each example includes a `config.json.dist` file. Copy it to `config.json` and customize.
+
+**TUI Chat Client** ⭐ (Feature-complete terminal interface):
+```bash
+cd examples/tui
+python bot.py config.yaml
+```
+See [examples/tui/USER_GUIDE.md](examples/tui/USER_GUIDE.md) for complete documentation.
+
+**Simple Logger** (minimal chat and media logging):
+```bash
+cd examples/log
 python bot.py config.json
 ```
 
-**Log Bot** (logs all chat and media):
+**Echo Bot** (repeats messages back):
 ```bash
-cd bots/log
+cd examples/echo
 python bot.py config.json
 ```
 
 **Markov Bot** (learns from chat and generates responses):
 ```bash
-cd bots/markov
+cd examples/markov
 python bot.py config.json
 ```
 
@@ -199,7 +227,7 @@ nssm start CyTubeWeb
 
 ## 🤖 Creating Your Own Bot
 
-Create a new directory under `bots/` and subclass the `Bot` class:
+Create a new directory under `examples/` and subclass the `Bot` class:
 
 ```python
 #!/usr/bin/env python3
@@ -212,8 +240,7 @@ sys.path.insert(0, str(project_root))
 
 import asyncio
 from lib import Bot, MessageParser
-from lib.error import CytubeError, SocketIOError
-from common import Shell, get_config
+from common import get_config
 
 class MyBot(Bot):
     def __init__(self, *args, **kwargs):
@@ -238,32 +265,19 @@ class MyBot(Bot):
         if current:
             self.logger.info(f'Now playing: {current.title}')
 
-def main():
+async def run_bot():
     conf, kwargs = get_config()
-    loop = asyncio.get_event_loop()
-    
-    bot = MyBot(loop=loop, **kwargs)
-    shell = Shell(conf.get('shell', None), bot, loop=loop)
+    bot = MyBot(**kwargs)
     
     try:
-        task = loop.create_task(bot.run())
-        if shell.task is not None:
-            task_ = asyncio.gather(task, shell.task)
-        else:
-            task_ = task
-        loop.run_until_complete(task_)
-    except (CytubeError, SocketIOError) as ex:
-        print(repr(ex), file=sys.stderr)
+        await bot.run()
     except KeyboardInterrupt:
         return 0
-    finally:
-        if shell.task:
-            shell.task.cancel()
-        task.cancel()
-        shell.close()
-        loop.close()
     
     return 1
+
+def main():
+    return asyncio.run(run_bot())
 
 if __name__ == '__main__':
     sys.exit(main())
@@ -396,7 +410,13 @@ This project was restructured from a traditional Python package into a monolithi
 
 ### Project History
 
-Originally based on [dead-beef's cytube-bot](https://github.com/dead-beef/cytube-bot), this project has been updated for modern Python and restructured for easier development and LLM integration.
+Originally based on [dead-beef's cytube-bot](https://github.com/dead-beef/cytube-bot), Rosey has been significantly updated and restructured:
+
+- Updated for modern Python 3.8+ with proper asyncio patterns
+- Restructured as a monolithic application for easier development
+- Added comprehensive examples including a feature-complete TUI client
+- Enhanced with database tracking, web dashboard, and shell control
+- Renamed from "CyTube Bot" to "Rosey" to reflect its evolution into a complete application
 
 ## 📝 License
 
@@ -404,7 +424,7 @@ MIT License - See LICENSE file for details.
 
 ## 🤝 Contributing
 
-Contributions are welcome! This is a work in progress with the goal of creating a flexible, modern CyTube bot framework with AI capabilities.
+Contributions are welcome! Rosey is an ongoing project with goals of creating a flexible, modern CyTube bot framework with potential AI capabilities.
 
 ## ⚠️ Notes
 
@@ -417,4 +437,4 @@ Contributions are welcome! This is a work in progress with the goal of creating 
 
 For CyTube-related questions, see the [CyTube documentation](https://github.com/calzoneman/sync/wiki).
 
-For bot-specific issues, please open an issue in this repository.
+For Rosey-specific issues, please open an issue in this repository.

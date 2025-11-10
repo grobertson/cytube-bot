@@ -1,0 +1,12 @@
+{
+  "domain": "https://cytu.be",
+  "channel": "YourChannelName",
+  "user": ["YourUsername", "YourPassword"],
+  "response_timeout": 1,
+  "restart_delay": 5,
+  "log_level": "WARNING",
+  "chat_log_file": "chat.log",
+  "media_log_file": "media.log",
+  "shell": "localhost:5555",
+  "db": "bot_data.db"
+}
