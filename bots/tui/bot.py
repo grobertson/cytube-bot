@@ -131,6 +131,7 @@ class TUIBot(Bot):
         self.running = False
         self.status_message = 'Connecting...'
         self.session_start = datetime.now()
+        self.current_media_title = None  # Cache current media title for display
         
         # Terminal size tracking (for Windows resize detection)
         self.last_terminal_size = (self.term.width, self.term.height)
@@ -411,7 +412,10 @@ class TUIBot(Bot):
         # Validate that playlist and current item exist before accessing
         if self.channel and self.channel.playlist and self.channel.playlist.current:
             title = self.channel.playlist.current.title
+            self.current_media_title = str(title)  # Cache for status bar display
             self.add_system_message(f'Now playing: {title}', color='bright_blue')
+            # Force update the top status bar to show new media
+            self.render_top_status()
 
     async def handle_login(self, _, data):
         """Handle successful login.
@@ -480,11 +484,18 @@ class TUIBot(Bot):
             parts.append(f"🕐 {current_time}")
             
             # Current media - "Now Playing: <title>"
-            # Access like the log bot does: self.channel.playlist.current
+            # Try to get from current playlist, otherwise use cached title
+            title = None
             if self.channel and self.channel.playlist and self.channel.playlist.current:
                 current = self.channel.playlist.current
                 # The current object should have a title attribute
-                title = str(current.title) if hasattr(current, 'title') else str(current)
+                if hasattr(current, 'title'):
+                    title = str(current.title)
+            elif self.current_media_title:
+                # Use cached title if current isn't available
+                title = self.current_media_title
+            
+            if title:
                 title = title[:50] + '...' if len(title) > 50 else title
                 parts.append(f"▶ Now Playing: {title}")
             
