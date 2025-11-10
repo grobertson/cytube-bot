@@ -1149,6 +1149,23 @@ class TUIBot(Bot):
             self.show_join_quit = not self.show_join_quit
             status = "enabled" if self.show_join_quit else "disabled"
             self.add_system_message(f'Join/quit messages {status}', color='bright_cyan')
+        elif command == 'current' or command == 'np':
+            # Show current media information
+            if self.channel and self.channel.playlist and self.channel.playlist.current:
+                current = self.channel.playlist.current
+                self.add_system_message('━━━ Current Media Info ━━━', color='bright_cyan')
+                self.add_system_message(f'Title: {current.title if hasattr(current, "title") else "N/A"}', color='bright_white')
+                self.add_system_message(f'Duration: {current.duration if hasattr(current, "duration") else "N/A"}s', color='bright_white')
+                self.add_system_message(f'Current time: {current.seconds if hasattr(current, "seconds") else "N/A"}s', color='bright_white')
+                self.add_system_message(f'Username: {current.username if hasattr(current, "username") else "N/A"}', color='bright_white')
+                self.add_system_message(f'Object type: {type(current).__name__}', color='bright_black')
+                self.add_system_message(f'Cached title: {self.current_media_title or "None"}', color='bright_black')
+            else:
+                self.add_system_message('No media currently playing', color='bright_red')
+                self.add_system_message(f'Channel: {self.channel is not None}', color='bright_black')
+                self.add_system_message(f'Playlist: {self.channel.playlist is not None if self.channel else "N/A"}', color='bright_black')
+                self.add_system_message(f'Current: {self.channel.playlist.current is not None if self.channel and self.channel.playlist else "N/A"}', color='bright_black')
+                self.add_system_message(f'Cached title: {self.current_media_title or "None"}', color='bright_black')
         else:
             self.add_system_message(f'Unknown command: /{command}', color='bright_red')
 
@@ -1177,6 +1194,7 @@ class TUIBot(Bot):
         help_lines = [
             '━━━ Available Commands ━━━',
             '/help or /h - Show this help message',
+            '/current or /np - Show current media information',
             '/pm <user> <msg> - Send a private message to a user',
             '/me <action> - Send an action message (e.g., /me waves)',
             '/clear - Clear all chat history from display',
