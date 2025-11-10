@@ -30,6 +30,7 @@ import os
 import json
 import signal
 import platform
+import textwrap
 from pathlib import Path
 from collections import deque
 from datetime import datetime, timedelta
@@ -639,21 +640,21 @@ class TUIBot(Bot):
             bg_color = self.theme['colors']['status_bar']['background']
             text_color = self.theme['colors']['status_bar']['text']
             
-            # Build status components
+            # Build status components (clock first, left-justified)
             parts = []
+            
+            # Clock with configurable format (show seconds now)
+            if self.clock_format == '12h':
+                current_time = datetime.now().strftime('%I:%M:%S %p')
+            else:
+                current_time = datetime.now().strftime('%H:%M:%S')
+            parts.append(f"🕐 {current_time}")
             
             # Channel name and connection status
             if self.channel:
                 parts.append(f"📺 {self.channel.name}")
             else:
                 parts.append("📺 Connecting...")
-            
-            # Clock with configurable format
-            if self.clock_format == '12h':
-                current_time = datetime.now().strftime('%I:%M %p')
-            else:
-                current_time = datetime.now().strftime('%H:%M')
-            parts.append(f"🕐 {current_time}")
             
             # Join status line with separator
             status_line = "  │  ".join(parts)
@@ -712,16 +713,16 @@ class TUIBot(Bot):
             
             # Media runtime and remaining - use cached values from changeMedia
             if self.current_media_duration:
-                # Total runtime
+                # Total runtime - show seconds now
                 total_mins, total_secs = divmod(int(self.current_media_duration), 60)
                 if total_mins >= 60:
                     total_hours = total_mins // 60
                     total_mins = total_mins % 60
-                    left_parts.append(f"⏱  Runtime: {total_hours}h {total_mins}m")
+                    left_parts.append(f"⏱  Runtime: {total_hours}h {total_mins}m {total_secs}s")
                 else:
                     left_parts.append(f"⏱  Runtime: {total_mins}m {total_secs}s")
                 
-                # Calculate current position and time remaining
+                # Calculate current position and time remaining - show seconds
                 if self.current_media_start_time and not self.current_media_paused:
                     import time as time_module
                     elapsed = time_module.time() - self.current_media_start_time
@@ -731,19 +732,19 @@ class TUIBot(Bot):
                         if rem_mins >= 60:
                             rem_hours = rem_mins // 60
                             rem_mins = rem_mins % 60
-                            left_parts.append(f"⏳ Remaining: {rem_hours}h {rem_mins}m")
+                            left_parts.append(f"⏳ Remaining: {rem_hours}h {rem_mins}m {rem_secs}s")
                         else:
                             left_parts.append(f"⏳ Remaining: {rem_mins}m {rem_secs}s")
             
             # Right side parts (will be right-justified)
             right_parts = []
             
-            # Session duration
+            # Session duration - show seconds
             session_duration = datetime.now() - self.session_start
             hours, remainder = divmod(int(session_duration.total_seconds()), 3600)
             minutes, seconds = divmod(remainder, 60)
             if hours > 0:
-                right_parts.append(f"⏱  Session: {hours}h {minutes}m")
+                right_parts.append(f"⏱  Session: {hours}h {minutes}m {seconds}s")
             else:
                 right_parts.append(f"⏱  Session: {minutes}m {seconds}s")
             
@@ -840,18 +841,35 @@ class TUIBot(Bot):
                 prefix_len += len(f'<{username}> ')
 
                 max_msg_width = chat_width - prefix_len
-
-                # Truncate message if needed
-                if len(message) > max_msg_width:
-                    message = message[:max_msg_width - 3] + '...'
-
+                
+                # Wrap message if needed (with 2 column padding after wrap)
+                wrapped_lines = textwrap.wrap(message, width=max_msg_width, 
+                                             break_long_words=True, 
+                                             break_on_hyphens=True)
+                
                 # Check if my username is mentioned in the message
-                message_display = message
                 if self.user and self.user.name and self.user.name in message:
                     # Highlight the entire message with reverse video
-                    message_display = self.term.reverse(message)
-
-                print(f'{time_str} {username_str}{message_display}', end='', flush=True)
+                    wrapped_lines = [self.term.reverse(line) for line in wrapped_lines]
+                
+                # Print first line with full prefix
+                if wrapped_lines:
+                    print(f'{time_str} {username_str}{wrapped_lines[0]}', end='', flush=True)
+                    
+                    # Print continuation lines with padding (2 spaces after wrap point)
+                    for continuation in wrapped_lines[1:]:
+                        i += 1
+                        if i < len(visible_messages):  # Don't exceed chat height
+                            break
+                        line_num = 2 + i
+                        with self.term.location(0, line_num):
+                            print(' ' * chat_width, end='')
+                        with self.term.location(0, line_num):
+                            indent = ' ' * (prefix_len + 2)  # 2 column padding
+                            print(f'{indent}{continuation}', end='', flush=True)
+                else:
+                    # Empty message
+                    print(f'{time_str} {username_str}', end='', flush=True)
 
         # Clear any remaining lines
         for i in range(len(visible_messages), chat_height):
