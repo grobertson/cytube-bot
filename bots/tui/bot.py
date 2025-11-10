@@ -733,16 +733,16 @@ class TUIBot(Bot):
                 current_time = datetime.now().strftime('%H:%M:%S')
             right_text = f"🕐 {current_time}"
             
-            # Calculate spacing to right-justify clock
+            # Calculate spacing to right-justify clock (5 columns from edge)
             left_len = len(left_text)
             right_len = len(right_text)
-            available_space = self.term.width - left_len - right_len
+            available_space = self.term.width - left_len - right_len - 5
             
             if available_space > 0:
-                status_line = left_text + ' ' * available_space + right_text
+                status_line = left_text + ' ' * available_space + right_text + ' ' * 5
             else:
                 # Not enough space, truncate left side
-                status_line = (left_text[:self.term.width - right_len - 3] + '...') + right_text
+                status_line = (left_text[:self.term.width - right_len - 8] + '...') + right_text + ' ' * 5
             
             # Ensure exact width
             if len(status_line) < self.term.width:
@@ -847,8 +847,8 @@ class TUIBot(Bot):
             left_display_len = len(left_text)
             right_display_len = len(right_text)
             
-            # Calculate spacing - leave a few chars buffer for safety
-            available_width = self.term.width - left_display_len - right_display_len - 3
+            # Calculate spacing - ensure 1-2 spaces after username (on right side)
+            available_width = self.term.width - left_display_len - right_display_len - 2
             
             if available_width < 1:
                 # Not enough space, just show left side
