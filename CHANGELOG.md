@@ -1,5 +1,60 @@
 # Changelog
 
+## [2.0.0] - 2025-11-10
+
+### Major Reorganization - "Rosey" Rebranding
+
+This release represents a major restructuring and rebranding of the project from "CyTube Bot" to "Rosey".
+
+#### Added
+
+- **New Directory Structure**:
+  - `bot/rosey/` - Main full-featured bot application (formerly `bots/log/`)
+  - `examples/` - Reference implementations (renamed from `bots/`)
+  - Simplified `examples/log/` - Pure logging without Shell/database feature creep
+
+- **Configuration Templates**:
+  - All examples now include `.dist` configuration files
+  - Sanitized templates with placeholder credentials
+  - No sensitive data in version control
+
+- **Rosey Bot Features**:
+  - `bot/rosey/rosey.py` - Main application with logging, Shell, and database
+  - `bot/rosey/prompt.md` - AI personality prompt for future LLM integration
+  - `bot/rosey/config.json.dist` - Complete configuration template
+
+#### Changed
+
+- **Project Name**: "CyTube Bot" → "Rosey" (when referring to the application)
+- **Directory Structure**: `bots/` → `examples/` for reference implementations
+- **Main Bot**: Centralized in `bot/rosey/` instead of scattered examples
+- **Documentation**: Comprehensive updates across all markdown files
+  - README.md - Complete rebranding and structure updates
+  - QUICKSTART.md - Updated paths and running instructions
+  - ARCHITECTURE.md - Updated layer diagrams and descriptions
+  - TUI documentation - Updated all path references
+
+#### Removed
+
+- `bots/rothbot/` - Consolidated into Rosey (prompt.md moved)
+- Original `bots/` directory structure
+
+#### Philosophy
+
+This reorganization clarifies the project's purpose:
+- **Rosey** (`bot/rosey/`) - The production-ready bot with all features
+- **Examples** (`examples/`) - Educational reference implementations
+- **TUI** (`examples/tui/`) - Featured terminal UI chat client (future standalone project)
+
+### Migration from 1.x
+
+For users of previous versions:
+
+1. **Main bot moved**: `bots/log/` → `bot/rosey/`
+2. **Examples reorganized**: `bots/*` → `examples/*`
+3. **Import paths unchanged**: All imports still use `lib` and `common`
+4. **Configuration format**: Same JSON/YAML format, just use `.dist` templates
+
 ## [1.1.2] - 2025-11-09
 
 ### Changed - Separated Services Approach

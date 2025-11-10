@@ -1,5 +1,8 @@
 # Rosey - A Python CyTube Bot Framework
 
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/grobertson/Rosey-Robot/releases)
+[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+
 **Rosey** is a Python-based framework for building bots that interact with [CyTube](https://github.com/calzoneman/sync) channels. Designed as a monolithic application for easier development and customization, Rosey provides a feature-rich main bot along with simple examples to help you get started.
 
 ## 🎯 Project Goals
