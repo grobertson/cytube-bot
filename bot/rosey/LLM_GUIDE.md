@@ -6,19 +6,20 @@ Rosey v2.0.0 includes built-in support for Large Language Model (LLM) integratio
 
 ## Supported Providers
 
-### Ollama (Local Inference)
+### Ollama (Local or Remote Inference)
 
 **Best for:**
 - Privacy-conscious deployments
-- No API costs
+- No API costs per request
 - Full control over the model
-- Offline operation
+- Local or networked GPU servers
+- Running multiple models simultaneously
 
 **Requirements:**
-- [Ollama](https://ollama.ai/) installed and running
+- [Ollama](https://ollama.ai/) installed and running (local or remote)
 - A downloaded model (e.g., `llama3`, `mistral`, `phi`)
 
-**Setup:**
+**Setup (Local):**
 ```bash
 # Install Ollama (see https://ollama.ai)
 # Pull a model
@@ -26,6 +27,19 @@ ollama pull llama3
 
 # Verify it's running
 ollama list
+```
+
+**Setup (Remote/Network):**
+```bash
+# On the Ollama server, expose the service
+# Edit /etc/systemd/system/ollama.service or set environment:
+OLLAMA_HOST=0.0.0.0:11434
+
+# Or use ollama serve with custom host
+ollama serve --host 0.0.0.0:11434
+
+# From your bot machine, test connectivity
+curl http://your-ollama-server:11434/api/tags
 ```
 
 ### OpenRouter (Remote API)
@@ -61,6 +75,7 @@ Add the `llm` section to your `config.json`:
 
 ### Ollama Configuration
 
+**Local Ollama:**
 ```json
 {
   "llm": {
@@ -74,11 +89,35 @@ Add the `llm` section to your `config.json`:
 }
 ```
 
+**Remote Ollama Server:**
+```json
+{
+  "llm": {
+    "enabled": true,
+    "provider": "ollama",
+    "ollama": {
+      "base_url": "http://192.168.1.100:11434",
+      "model": "llama3"
+    }
+  }
+}
+```
+
+**Multiple Models (different bots or contexts):**
+Ollama can serve multiple models simultaneously. Just specify different models in different bot instances or contexts:
+```json
+"model": "llama3"      // For general chat
+"model": "mistral"     // For a different bot instance
+"model": "codellama"   // For code-related queries
+```
+
 **Available Models:**
-- `llama3` - Meta's Llama 3 (recommended)
-- `mistral` - Mistral AI's model
+- `llama3` - Meta's Llama 3 (recommended for general use)
+- `llama3:70b` - Larger Llama 3 variant (better quality, slower)
+- `mistral` - Mistral AI's model (good balance)
 - `phi` - Microsoft's Phi model (smaller, faster)
-- See `ollama list` for all downloaded models
+- `codellama` - Specialized for code
+- See `ollama list` on your Ollama server for all downloaded models
 
 ### OpenRouter Configuration
 
@@ -202,7 +241,8 @@ llm_client.clear_conversation("alice")
 ## Privacy & Safety
 
 ### Data Handling
-- **Ollama**: All data stays local, nothing sent externally
+- **Ollama (Local)**: All data stays on your machine, nothing sent externally
+- **Ollama (Remote/LAN)**: Data sent to your Ollama server, stays on your network
 - **OpenRouter**: Messages sent to their API (see their privacy policy)
 
 ### Content Filtering
@@ -223,15 +263,19 @@ llm_client.clear_conversation("alice")
 **"Connection refused"**
 - Ensure Ollama is running: `ollama serve`
 - Check base_url matches Ollama's endpoint
+- For remote servers: Verify firewall/network access
+- Test with: `curl http://your-server:11434/api/tags`
 
 **"Model not found"**
-- Pull the model: `ollama pull llama3`
+- Pull the model on the Ollama server: `ollama pull llama3`
 - Verify with: `ollama list`
+- Check spelling of model name in config
 
 **Slow responses**
-- Use a smaller model
-- Enable GPU acceleration
+- Use a smaller model (`phi`, `mistral` vs `llama3:70b`)
+- Ensure GPU acceleration is enabled on the server
 - Reduce `max_tokens`
+- For remote servers: Check network latency
 
 ### OpenRouter Issues
 
