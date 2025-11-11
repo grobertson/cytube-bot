@@ -16,6 +16,7 @@
     "max_context_messages": 10,
     "temperature": 0.7,
     "max_tokens": 500,
+    "log_only": false,
     "ollama": {
       "base_url": "http://localhost:11434",
       "model": "llama3"
@@ -25,6 +26,45 @@
       "model": "anthropic/claude-3-haiku",
       "site_url": "https://your-site.com",
       "site_name": "Rosey CyTube Bot"
+    },
+    "triggers": {
+      "enabled": true,
+      "direct_mention": true,
+      "commands": ["!ai", "!ask"],
+      "ambient_chat": {
+        "enabled": false,
+        "every_n_messages": 20,
+        "randomness": 0.5
+      },
+      "keywords": [
+        {
+          "phrases": ["toddy", "the toddy"],
+          "probability": 0.1,
+          "cooldown_seconds": 300
+        },
+        {
+          "phrases": ["boobs", "boobies"],
+          "probability": 0.05,
+          "cooldown_seconds": 600
+        }
+      ],
+      "greetings": {
+        "enabled": false,
+        "on_join": {
+          "enabled": true,
+          "probability": 0.2,
+          "idle_threshold_minutes": 60,
+          "moderators_only": false,
+          "specific_users": {
+            "alice": 1.0,
+            "bob": 0.5
+          }
+        },
+        "on_status_change": {
+          "enabled": false,
+          "probability": 0.1
+        }
+      }
     }
   }
 }
