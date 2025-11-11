@@ -3,6 +3,9 @@ websockets>=12.0
 requests>=2.32.3
 aiohttp>=3.9.0  # For async HTTP requests (LLM providers)
 
+# LLM providers (optional but recommended)
+openai>=1.0.0   # For OpenAI API and compatible endpoints (Azure, LocalAI, LM Studio)
+
 # Web status server
 Flask>=3.0.0
 
