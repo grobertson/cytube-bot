@@ -153,6 +153,132 @@ Then interact with the bot directly:
 <PlaylistItem ...>
 ```
 
+## 🤖 LLM Integration
+
+**NEW in v2.0:** Rosey now supports AI-powered chat responses using Large Language Models!
+
+### Supported Providers
+
+- **OpenAI** - GPT-4, GPT-3.5-turbo (cloud, paid)
+- **Azure OpenAI** - OpenAI models hosted on Azure
+- **Ollama** - Run models locally (Llama 3, Mistral, etc.) - FREE!
+- **OpenRouter** - Access multiple providers through one API
+- **LocalAI / LM Studio** - OpenAI-compatible local servers
+
+### Quick Setup
+
+**1. Choose a Provider:**
+
+**Option A: OpenAI (easiest, paid)**
+```json
+{
+  "llm": {
+    "enabled": true,
+    "provider": "openai",
+    "openai": {
+      "api_key": "sk-YOUR_API_KEY",
+      "model": "gpt-4o-mini"
+    },
+    "triggers": {
+      "enabled": true,
+      "direct_mention": true
+    }
+  }
+}
+```
+
+**Option B: Ollama (free, runs locally)**
+```bash
+# Install Ollama
+curl https://ollama.ai/install.sh | sh
+
+# Pull a model
+ollama pull llama3
+
+# Start server
+ollama serve
+```
+
+```json
+{
+  "llm": {
+    "enabled": true,
+    "provider": "ollama",
+    "ollama": {
+      "base_url": "http://localhost:11434",
+      "model": "llama3"
+    },
+    "triggers": {
+      "enabled": true,
+      "direct_mention": true
+    }
+  }
+}
+```
+
+**2. Install Dependencies:**
+```bash
+pip install "openai>=1.0.0"  # For OpenAI provider
+pip install "aiohttp>=3.9.0"  # For all providers
+```
+
+**3. Run Bot:**
+```bash
+python bot/rosey/rosey.py bot/rosey/config.json
+```
+
+Bot will now respond when mentioned:
+```
+User: "hey Rosey, tell me a joke"
+Rosey: "Why did the bot go to therapy? It had too many connection issues!"
+```
+
+### Features
+
+- **Smart Triggers**: Respond to mentions, commands, keywords, or ambient chat
+- **Conversation Context**: Remembers recent conversation per user
+- **Flexible Configuration**: Control response probability, cooldowns, greetings
+- **Production Ready**: Works with systemd, supports remote Ollama servers
+- **Cost Control**: Rate limiting, configurable token limits
+
+### Documentation
+
+- **[Complete LLM Configuration Guide](docs/LLM_CONFIGURATION.md)** - Setup for all providers, trigger configuration, troubleshooting
+- **[Systemd Deployment with LLM](systemd/README.md)** - Production deployment guide
+
+### Example Configurations
+
+**Simple (mention only):**
+```json
+{"llm": {"enabled": true, "provider": "openai", "openai": {"api_key": "sk-...", "model": "gpt-4o-mini"}}}
+```
+
+**Advanced (keywords, ambient, greetings):**
+```json
+{
+  "llm": {
+    "enabled": true,
+    "provider": "ollama",
+    "ollama": {"base_url": "http://localhost:11434", "model": "llama3"},
+    "triggers": {
+      "enabled": true,
+      "direct_mention": true,
+      "commands": ["!ai", "!ask"],
+      "ambient_chat": {"enabled": true, "every_n_messages": 20},
+      "keywords": [
+        {"phrases": ["interesting"], "probability": 0.1, "cooldown_seconds": 300}
+      ],
+      "greetings": {
+        "enabled": true,
+        "on_join": {"enabled": true, "probability": 0.2}
+      }
+    }
+  }
+}
+```
+
+See [docs/LLM_CONFIGURATION.md](docs/LLM_CONFIGURATION.md) for complete details.
+
 ### Web Status Dashboard
 
 View live statistics and metrics in your browser:
@@ -349,52 +475,28 @@ playlist.get(uid)         # Get item by UID
 
 ### Implemented Features
 
-1. **Web Status Dashboard** ✅
-   - Live statistics and metrics display
-   - Interactive graphs of user activity over time
-   - Historical data tracking (up to 7 days)
-   - Top chatters leaderboard
-   - Auto-refreshing every 30 seconds
-   - JSON API for external integrations
-   - See [web/README.md](web/README.md) for details
-
-2. **Database Integration** ✅
-   - SQLite for persistence and statistics
-   - User tracking (messages, connection time)
-   - High water marks (peak users)
-   - Historical user count logging
-   - PM command logging
-
-3. **PM Command Interface** ✅
-   - Control bot via private messages
-   - Rank-based access control (moderator+)
-   - Full shell command support via PM
-   - See [PM_GUIDE.md](PM_GUIDE.md) for details
+- ✅ Web Dashboard for monitoring bot status
+- ✅ Database Integration with PostgreSQL for data persistence
+- ✅ PM Command Interface for administrative control via private messages
+- ✅ **LLM Chat Integration** - AI-powered responses with OpenAI, Ollama, and OpenRouter support. Smart triggers, conversation context, flexible configuration. See [docs/LLM_CONFIGURATION.md](docs/LLM_CONFIGURATION.md)
 
 ### Planned Features
 
-1. **LLM Chat Integration**
-   - OpenAI/Anthropic API support
-   - Context-aware responses
-   - Configurable trigger patterns
-   - Rate limiting and cooldowns
-   - Personality customization
-
-2. **Advanced Playlist Features**
+1. **Advanced Playlist Features**
    - Smart playlist management
    - Media recommendations
    - Duplicate detection
    - Automatic queue filling
 
-3. **Enhanced Bot Capabilities**
+2. **Enhanced Bot Capabilities**
    - Plugin system for easy extensibility
-   - Multi-channel support
+   - Multi-channel support (one bot, multiple channels)
 
-4. **AI-Powered Features**
-   - Sentiment analysis
-   - Content moderation
-   - Smart responses based on channel context
-   - Learning from user preferences
+3. **AI-Powered Features**
+   - Sentiment analysis for channel mood tracking
+   - Enhanced content moderation
+   - Learning from user preferences over time
+   - Multi-turn conversation improvements
 
 ## 🛠️ Development
 

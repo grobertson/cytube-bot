@@ -17,6 +17,11 @@
     "temperature": 0.7,
     "max_tokens": 500,
     "log_only": false,
+    "openai": {
+      "api_key": "sk-YOUR_OPENAI_API_KEY",
+      "model": "gpt-4o-mini",
+      "base_url": "https://api.openai.com/v1"
+    },
     "ollama": {
       "base_url": "http://localhost:11434",
       "model": "llama3"

@@ -1,19 +1,64 @@
 [Unit]
-Description=CyTube Bot
-After=network.target
+Description=CyTube Bot with LLM Integration
+Documentation=https://github.com/grobertson/Rosey-Robot
+After=network.target network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=botuser
+Group=botuser
 WorkingDirectory=/home/botuser/cytube-bot
-ExecStart=/usr/bin/python3 bots/echo/bot.py bots/echo/config.json
-Restart=on-failure
+
+# Example for Rosey bot with LLM:
+ExecStart=/usr/bin/python3 bot/rosey/rosey.py bot/rosey/config.json
+
+# Alternative examples:
+# Echo bot: /usr/bin/python3 bots/echo/bot.py bots/echo/config.json
+# Log bot:  /usr/bin/python3 bots/log/bot.py bots/log/config.json
+
+# Restart configuration
+Restart=always
 RestartSec=10
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Logging
 StandardOutput=append:/var/log/cytube-bot/bot.log
 StandardError=append:/var/log/cytube-bot/bot.log
+SyslogIdentifier=cytube-bot
 
-# Note: Update ExecStart to point to your bot script and config file
-# Example for log bot: /usr/bin/python3 bots/log/bot.py bots/log/config.json
+# Security hardening (optional but recommended)
+NoNewPrivileges=true
+PrivateTmp=true
+
+# LLM Integration Notes:
+# ----------------------
+# All LLM configuration is managed through the bot's config.json file.
+# See docs/LLM_CONFIGURATION.md for detailed setup instructions.
+#
+# Supported LLM providers:
+# - OpenAI (GPT-4, GPT-3.5-turbo, etc.)
+# - Azure OpenAI
+# - Ollama (local inference)
+# - OpenRouter (multi-model access)
+# - LocalAI, LM Studio (OpenAI-compatible)
+#
+# Key configuration sections in config.json:
+#   "llm": {
+#     "enabled": true,
+#     "provider": "openai|ollama|openrouter",
+#     "openai": {"api_key": "sk-...", "model": "gpt-4o-mini"},
+#     "ollama": {"base_url": "http://localhost:11434", "model": "llama3"},
+#     "triggers": {...},
+#     ...
+#   }
+#
+# For remote Ollama servers, update "base_url" in config.json:
+#   "ollama": {"base_url": "http://GPU_SERVER_IP:11434", "model": "llama3"}
+#
+# Important: Keep API keys in config.json with proper file permissions (600)
+# DO NOT use environment variables for configuration in this service file.
 
 [Install]
 WantedBy=multi-user.target

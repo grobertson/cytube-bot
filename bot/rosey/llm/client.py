@@ -6,7 +6,7 @@ Manages provider selection, context, and conversation state.
 
 from typing import Optional, List, Dict, Any
 from pathlib import Path
-from .providers import LLMProvider, OllamaProvider, OpenRouterProvider
+from .providers import LLMProvider, OpenAIProvider, OllamaProvider, OpenRouterProvider
 
 
 class LLMClient:
@@ -25,7 +25,8 @@ class LLMClient:
         
         Config structure:
         {
-            'provider': 'ollama' | 'openrouter',
+            'provider': 'openai' | 'ollama' | 'openrouter',
+            'openai': {...},
             'ollama': {...},
             'openrouter': {...},
             'system_prompt_file': 'path/to/prompt.md',
@@ -38,7 +39,10 @@ class LLMClient:
         self.provider_name = config.get('provider', 'ollama')
         
         # Initialize provider
-        if self.provider_name == 'ollama':
+        if self.provider_name == 'openai':
+            provider_config = config.get('openai', {})
+            self.provider = OpenAIProvider(provider_config)
+        elif self.provider_name == 'ollama':
             provider_config = config.get('ollama', {})
             self.provider = OllamaProvider(provider_config)
         elif self.provider_name == 'openrouter':
