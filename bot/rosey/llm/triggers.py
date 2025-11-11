@@ -1,8 +1,9 @@
 """
-Trigger system for determining when Rosey should respond with LLM.
+Trigger system for determining when the bot should respond with LLM.
 
 Provides flexible, configurable logic for:
-- Direct mentions (@rosey, !ai)
+- Direct mentions (bot username in message, e.g., "CynthiaRotbot")
+- Command triggers (!ai, !ask)
 - Keyword/phrase triggers with throttling
 - Random ambient chat
 - User-specific behaviors
@@ -99,8 +100,8 @@ class TriggerManager:
         Initialize trigger manager.
         
         Args:
-            config: Trigger configuration
-            bot_username: Bot's username for mention detection
+            config: TriggerConfig instance
+            bot_username: Bot's CyTube username (e.g., "CynthiaRotbot", "SaveTheRobots")
         """
         self.config = config
         self.bot_username = bot_username.lower()
@@ -146,8 +147,9 @@ class TriggerManager:
         
         msg_lower = message.lower().strip()
         
-        # Direct mention of bot name
-        if self.config.direct_mention and self.bot_username in msg_lower:
+        # Direct mention of bot's username (case-insensitive)
+        # Users mention the bot's CyTube name (e.g., "CynthiaRotbot what's playing?")
+        if self.config.direct_mention and self.bot_username.lower() in msg_lower:
             return True, "direct_mention"
         
         # Commands (!ai, !ask)
@@ -261,7 +263,12 @@ class TriggerManager:
     
     def extract_prompt(self, message: str) -> str:
         """
-        Extract the actual prompt from a message, removing commands.
+        Extract the actual prompt from a message, removing commands and bot name.
+        
+        Examples:
+            "!ai tell me a joke" -> "tell me a joke"
+            "CynthiaRotbot what's playing?" -> "what's playing?"
+            "hey SaveTheRobots explain this" -> "hey explain this"
         
         Args:
             message: Original message
@@ -271,13 +278,13 @@ class TriggerManager:
         """
         msg = message.strip()
         
-        # Remove commands
+        # Remove command prefixes
         for cmd in self.config.commands:
             if msg.lower().startswith(cmd.lower()):
                 msg = msg[len(cmd):].strip()
                 break
         
-        # Remove bot name mentions (rough)
+        # Remove bot username mentions (e.g., "CynthiaRotbot" or "SaveTheRobots")
         msg = re.sub(rf'\b{re.escape(self.bot_username)}\b', '', msg, flags=re.IGNORECASE)
         
         return msg.strip()
