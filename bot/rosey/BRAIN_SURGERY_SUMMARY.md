@@ -10,7 +10,7 @@
 
 ### Sophisticated Trigger System ✅
 
-- **Direct Mentions** - Responds when bot's username mentioned (e.g., "CynthiaRotbot what's playing?")
+- **Direct Mentions** - Responds when bot's username mentioned (e.g., "CynthiaRothbot what's playing?")
 - **Commands** - `!ai`, `!ask` prefix commands
 - **Keyword Triggers** - Configurable phrases with probability and cooldown
   - Example: "toddy" → 10% chance, 5min cooldown
@@ -32,7 +32,7 @@
 ### Integration with Rosey ✅
 
 - **Event Handlers** - chatMsg, pm, addUser
-- **Username Detection** - Bot responds to its CyTube username (e.g., "CynthiaRotbot", "SaveTheRobots")
+- **Username Detection** - Bot responds to its CyTube username (e.g., "CynthiaRothbot", "SaveTheRobots")
 - **Prompt Extraction** - Automatically removes commands/mentions
 - **Context Management** - Per-user conversation history
 - **Comprehensive Logging** - Trigger reasons, responses, errors
@@ -87,8 +87,8 @@
 ### Direct Interaction
 
 ```text
-User: CynthiaRotbot what's playing?
-CynthiaRotbot: [LLM response about current video]
+User: CynthiaRothbot what's playing?
+CynthiaRothbot: [LLM response about current video]
 
 User: hey SaveTheRobots tell me a joke
 SaveTheRobots: [LLM generated joke]
@@ -118,7 +118,7 @@ Bot: [Relevant comment about recent conversation]
 
 ```text
 Alice joins (always greeted)
-CynthiaRotbot: Welcome back Alice!
+CynthiaRothbot: Welcome back Alice!
 
 Bob joins (20% chance)
 [Maybe greeted, maybe not]

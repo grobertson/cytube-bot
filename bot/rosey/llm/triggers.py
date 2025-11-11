@@ -2,7 +2,7 @@
 Trigger system for determining when the bot should respond with LLM.
 
 Provides flexible, configurable logic for:
-- Direct mentions (bot username in message, e.g., "CynthiaRotbot")
+- Direct mentions (bot username in message, e.g., "CynthiaRothbot")
 - Command triggers (!ai, !ask)
 - Keyword/phrase triggers with throttling
 - Random ambient chat
@@ -101,7 +101,7 @@ class TriggerManager:
         
         Args:
             config: TriggerConfig instance
-            bot_username: Bot's CyTube username (e.g., "CynthiaRotbot", "SaveTheRobots")
+            bot_username: Bot's CyTube username (e.g., "CynthiaRothbot", "SaveTheRobots")
         """
         self.config = config
         self.bot_username = bot_username.lower()
@@ -148,7 +148,7 @@ class TriggerManager:
         msg_lower = message.lower().strip()
         
         # Direct mention of bot's username (case-insensitive)
-        # Users mention the bot's CyTube name (e.g., "CynthiaRotbot what's playing?")
+        # Users mention the bot's CyTube name (e.g., "CynthiaRothbot what's playing?")
         if self.config.direct_mention and self.bot_username.lower() in msg_lower:
             return True, "direct_mention"
         
@@ -267,7 +267,7 @@ class TriggerManager:
         
         Examples:
             "!ai tell me a joke" -> "tell me a joke"
-            "CynthiaRotbot what's playing?" -> "what's playing?"
+            "CynthiaRothbot what's playing?" -> "what's playing?"
             "hey SaveTheRobots explain this" -> "hey explain this"
         
         Args:
@@ -284,7 +284,7 @@ class TriggerManager:
                 msg = msg[len(cmd):].strip()
                 break
         
-        # Remove bot username mentions (e.g., "CynthiaRotbot" or "SaveTheRobots")
+        # Remove bot username mentions (e.g., "CynthiaRothbot" or "SaveTheRobots")
         msg = re.sub(rf'\b{re.escape(self.bot_username)}\b', '', msg, flags=re.IGNORECASE)
         
         return msg.strip()
