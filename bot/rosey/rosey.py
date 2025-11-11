@@ -21,8 +21,17 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from common import Shell, get_config, configure_logger
+from common.database import Database
 from lib.error import CytubeError, SocketIOError
 from lib import Bot
+
+# LLM imports (optional)
+try:
+    from bot.rosey.llm import LLMClient
+    from bot.rosey.llm.triggers import TriggerConfig, TriggerManager
+    HAS_LLM = True
+except ImportError:
+    HAS_LLM = False
 
 def log_chat(logger, event, data):
     """Log a chat message or private message to the chat log
@@ -68,6 +77,121 @@ def log_media(bot, logger, *_):
         )
 
 
+class LLMHandlers:
+    """Event handlers for LLM integration."""
+    
+    def __init__(self, bot, llm_client, trigger_manager, logger, config):
+        """
+        Initialize LLM handlers.
+        
+        Args:
+            bot: Bot instance
+            llm_client: LLMClient instance
+            trigger_manager: TriggerManager instance
+            logger: Logger for LLM events
+            config: LLM configuration dict
+        """
+        self.bot = bot
+        self.llm = llm_client
+        self.triggers = trigger_manager
+        self.logger = logger
+        self.log_only = config.get('log_only', False)
+    
+    async def handle_chat_message(self, event, data):
+        """
+        Handle chat messages for LLM responses.
+        
+        Args:
+            event: Event name ('chatMsg')
+            data: Event data with username, msg, etc.
+        """
+        username = data.get('username', '')
+        message = data.get('msg', '')
+        
+        # Skip our own messages
+        if username.lower() == self.bot.user.name.lower():
+            return
+        
+        # Get user rank for moderation checks
+        user = self.bot.channel.get_user(username)
+        user_rank = user.rank if user else 0.0
+        
+        # Check if we should respond
+        should_respond, reason = self.triggers.should_respond_to_chat(
+            username, message, user_rank
+        )
+        
+        if not should_respond:
+            return
+        
+        self.logger.info("Trigger: %s | User: %s | Message: %s", reason, username, message[:50])
+        
+        try:
+            # Extract prompt (remove commands/mentions)
+            prompt = self.triggers.extract_prompt(message)
+            if not prompt:
+                prompt = "Hello!"
+            
+            # Generate response
+            response = await self.llm.chat(username, prompt)
+            
+            if self.log_only:
+                self.logger.info("[LOG ONLY] Would respond: %s", response)
+            else:
+                await self.bot.chat(response)
+                self.logger.info("Response sent: %s", response[:100])
+        
+        except Exception as e:
+            self.logger.error("LLM error: %s", e, exc_info=True)
+    
+    async def handle_pm(self, event, data):
+        """
+        Handle private messages - stub for future implementation.
+        
+        Could be used for:
+        - Private AI conversations
+        - Admin commands to control LLM
+        - User-specific settings
+        """
+        # NoOp for now
+        pass
+    
+    async def handle_user_join(self, event, data):
+        """
+        Handle user join events for greetings.
+        
+        Args:
+            event: Event name ('addUser')
+            data: Event data with username, rank, etc.
+        """
+        username = data.get('name', '')
+        rank = data.get('rank', 0.0)
+        
+        # Check if we should greet
+        should_greet, reason = self.triggers.should_greet_user(
+            username, rank, is_join=True
+        )
+        
+        if not should_greet:
+            return
+        
+        self.logger.info("Greeting: %s | User: %s (rank: %.1f)", reason, username, rank)
+        
+        try:
+            # Generate personalized greeting
+            prompt = f"Greet {username} who just joined the channel. Be brief and friendly."
+            response = await self.llm.generate(prompt)
+            
+            if self.log_only:
+                self.logger.info("[LOG ONLY] Would greet: %s", response)
+            else:
+                await self.bot.chat(response)
+                self.logger.info("Greeting sent: %s", response[:100])
+        
+        except Exception as e:
+            self.logger.error("LLM greeting error: %s", e, exc_info=True)
+
+
 async def run_bot():
     """Run Rosey with proper async handling
 
@@ -81,9 +205,10 @@ async def run_bot():
     # Load configuration from command line argument
     conf, kwargs = get_config()
 
-    # Create separate loggers for chat messages and media changes
+    # Create separate loggers for chat messages, media, and LLM
     chat_logger = logging.getLogger("chat")
     media_logger = logging.getLogger("media")
+    llm_logger = logging.getLogger("llm")
 
     # Configure chat logger (separate file or stdout)
     configure_logger(
@@ -98,6 +223,13 @@ async def run_bot():
         log_file=conf.get("media_log_file", None),
         log_format="[%(asctime).19s] %(message)s",  # Include timestamp
     )
+    
+    # Configure LLM logger
+    configure_logger(
+        llm_logger,
+        log_file=conf.get("llm_log_file", None),
+        log_format="[%(asctime).19s] [%(levelname)s] %(message)s",
+    )
 
     # Create Rosey bot instance with configuration
     bot = Bot(**kwargs)
@@ -105,6 +237,26 @@ async def run_bot():
     # Create and start shell server if configured
     shell = Shell(conf.get("shell", None), bot)
     await shell.start()
+    
+    # Initialize LLM if configured
+    llm_client = None
+    trigger_manager = None
+    if HAS_LLM:
+        llm_config = conf.get('llm', {})
+        if llm_config.get('enabled', False):
+            try:
+                llm_client = LLMClient(llm_config)
+                await llm_client.__aenter__()
+                
+                trigger_config = TriggerConfig(llm_config.get('triggers', {}))
+                bot_username = conf.get('user', ['bot'])[0]
+                trigger_manager = TriggerManager(trigger_config, bot_username)
+                
+                llm_logger.info("LLM integration enabled with %s provider", llm_config.get('provider'))
+            except Exception as e:
+                llm_logger.error("Failed to initialize LLM: %s", e)
+                llm_client = None
+                trigger_manager = None
 
     # Create partial functions with loggers bound
     log = partial(log_chat, chat_logger)
@@ -118,6 +270,13 @@ async def run_bot():
     # Register PM command handler for moderators (if shell is enabled)
     if shell.bot is not None:
         bot.on("pm", shell.handle_pm_command)  # Handle mod commands via PM
+    
+    # Register LLM handlers if enabled
+    if llm_client and trigger_manager:
+        llm_handlers = LLMHandlers(bot, llm_client, trigger_manager, llm_logger, conf.get('llm', {}))
+        bot.on("chatMsg", llm_handlers.handle_chat_message)
+        bot.on("pm", llm_handlers.handle_pm)
+        bot.on("addUser", llm_handlers.handle_user_join)
 
     try:
         # Run Rosey (blocks until cancelled or error)
@@ -125,6 +284,10 @@ async def run_bot():
     finally:
         # Always close the shell on exit
         shell.close()
+        
+        # Close LLM client if active
+        if llm_client:
+            await llm_client.__aexit__(None, None, None)
 
 
 def main():

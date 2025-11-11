@@ -1,6 +1,7 @@
 # Core dependencies for CyTube bot library
 websockets>=12.0
 requests>=2.32.3
+aiohttp>=3.9.0  # For async HTTP requests (LLM providers)
 
 # Web status server
 Flask>=3.0.0
