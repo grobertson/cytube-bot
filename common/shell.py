@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""A command-based control shell for the CyTube bot"""
-import asyncio
+"""PM command interface for bot control via moderator private messages"""
 import logging
 from lib import MediaLink
 
 
 class Shell:
-    '''Command-based control shell for the bot.'''
+    '''PM command interface for bot control.
+    
+    Handles moderator commands sent via private messages.
+    TCP/telnet server functionality has been removed - use REST API instead.
+    '''
     logger = logging.getLogger(__name__)
 
     @staticmethod
@@ -32,15 +35,6 @@ class Shell:
             parts.append(f"{secs}s")
 
         return ' '.join(parts)
-
-    WELCOME = """
-================================================================
-            CyTube Bot Control Shell
-================================================================
-
-Connected! Type 'help' for available commands, 'exit' to quit.
-
-"""
 
     HELP_TEXT = """
 Bot Commands:
@@ -83,78 +77,16 @@ Examples:
 """
 
     def __init__(self, addr, bot, loop=None):
-        ''' Initialize the shell server
+        '''Initialize the PM command handler
 
         Args:
-            addr: Address string in format "host:port" or None to disable shell
+            addr: Ignored (kept for backward compatibility with existing code)
             bot: lib.Bot instance to interact with
-            loop: asyncio event loop (optional, will create one if not provided)
+            loop: Ignored (kept for backward compatibility)
         '''
-        # If no address provided, disable the shell
+        self.bot = bot if addr is not None else None
         if addr is None:
-            self.logger.warning('shell is disabled')
-            self.host = None
-            self.port = None
-            self.loop = None
-            self.bot = None
-            self.server_coro = None
-            return
-
-        # Parse the address string into host and port
-        self.host, self.port = addr.rsplit(':')
-        self.port = int(self.port)
-
-        # Get or create an event loop
-        if loop is None:
-            try:
-                # Try to get the currently running event loop
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                # No loop running, create a new one
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-        self.loop = loop
-        self.bot = bot
-
-        # Create the server coroutine (not started yet)
-        self.logger.info('starting shell at %s:%d', self.host, self.port)
-        self.server_coro = asyncio.start_server(
-            self.handle_connection,  # Handler for each connection
-            self.host, self.port
-        )
-        self.server = None
-        self.server_task = None
-
-    @staticmethod
-    async def write(writer, string):
-        ''' Write a string to the client, converting line endings for telnet compatibility
-
-        Args:
-            writer: asyncio StreamWriter to write to
-            string: String to send to the client
-        '''
-        # Convert LF to CRLF for better telnet compatibility (especially Windows)
-        string = string.replace('\n', '\r\n')
-        writer.write(string.encode('utf-8'))
-        await writer.drain()  # Wait for data to be sent
-
-    async def start(self):
-        ''' Start the shell server (must be called from async context)
-
-        This actually starts listening for connections after __init__ set up the coroutine.
-        '''
-        if self.server_coro is not None:
-            self.server = await self.server_coro
-            self.server_task = asyncio.create_task(self.server.wait_closed())
-
-    def close(self):
-        ''' Close the shell server and cancel any running tasks '''
-        if self.server is not None:
-            self.logger.info('closing shell server')
-            self.server.close()
-        if self.server_task is not None:
-            self.logger.info('cancel shell task')
-            self.server_task.cancel()
+            self.logger.info('PM command interface disabled')
 
     async def handle_pm_command(self, event, data):
         """Handle commands sent via PM from moderators
@@ -720,83 +652,4 @@ Examples:
         count = bot.channel.voteskip_count
         need = bot.channel.voteskip_need
         return f"Voteskip: {count}/{need}"
-
-    async def handle_connection(self, reader, writer):
-        ''' Handle a single client connection to the shell
-
-        Args:
-            reader: asyncio StreamReader for reading client input
-            writer: asyncio StreamWriter for sending responses
-        '''
-        try:
-            bot = self.bot
-
-            self.logger.info('accepted shell connection')
-
-            # Send welcome message
-            await self.write(writer, self.WELCOME)
-            await self.write(writer, "Type 'help' for commands\n")
-
-            while True:
-                # Show command prompt
-                await self.write(writer, '> ')
-                line = await reader.readline()
-
-                # Check for EOF (connection closed)
-                if not line:
-                    break
-
-                # Decode with error handling
-                try:
-                    line = line.decode('utf-8')
-                except UnicodeDecodeError:
-                    try:
-                        line = line.decode('latin-1')
-                    except Exception as e:
-                        await self.write(writer,
-                                        f'Error decoding input: {e}\n')
-                        continue
-
-                # Clean up the line
-                cmd = line.strip()
-
-                # Check for exit commands
-                if cmd.lower() in ('exit', 'quit'):
-                    self.logger.info('exiting shell')
-                    await self.write(writer, '\nGoodbye!\n')
-                    break
-
-                # Skip empty commands
-                if not cmd:
-                    continue
-
-                try:
-                    # Process command
-                    result = await self.handle_command(cmd, bot)
-                    if result:
-                        await self.write(writer, f'{result}\n')
-
-                except asyncio.CancelledError:
-                    raise
-
-                except Exception as ex:
-                    error_msg = f'Error: {ex}\n'
-                    await self.write(writer, error_msg)
-                    self.logger.error('Command error: %s', ex,
-                                     exc_info=True)
-
-        except (IOError, ConnectionResetError) as ex:
-            self.logger.info('connection closed: %s', ex)
-        except asyncio.CancelledError:
-            self.logger.info('shell connection cancelled')
-        except Exception as ex:
-            self.logger.error('unexpected error in shell: %s', ex)
-            self.logger.debug('traceback:', exc_info=True)
-        finally:
-            writer.close()
-            try:
-                await writer.wait_closed()
-            except AttributeError:
-                pass
-            self.logger.info('closed shell connection')
 
