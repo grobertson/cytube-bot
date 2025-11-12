@@ -1,0 +1,1 @@
+"""Rosey test suite."""

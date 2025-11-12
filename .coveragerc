@@ -1,0 +1,22 @@
+[run]
+source = lib, common, bot, web
+omit =
+    */tests/*
+    */__pycache__/*
+    */.venv/*
+    */venv/*
+    */examples/*
+    */_old/*
+    */test_*.py
+    setup.py
+
+[report]
+precision = 2
+show_missing = True
+skip_covered = False
+
+# Coverage thresholds
+fail_under = 66.0
+
+[html]
+directory = htmlcov
