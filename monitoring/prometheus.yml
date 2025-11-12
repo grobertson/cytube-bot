@@ -1,0 +1,68 @@
+# Prometheus configuration for Rosey Bot monitoring
+#
+# This configuration scrapes metrics from the bot instances
+# and the metrics exporter.
+#
+# Usage:
+#   prometheus --config.file=monitoring/prometheus.yml
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'rosey-bot'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - localhost:9093
+
+# Load alerting rules
+rule_files:
+  - 'alert_rules.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Rosey Bot metrics exporter
+  - job_name: 'rosey-bot-metrics'
+    static_configs:
+      - targets:
+          - 'localhost:9090'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+
+  # Test bot health endpoint
+  - job_name: 'rosey-bot-test'
+    static_configs:
+      - targets:
+          - 'localhost:8001'
+    metrics_path: '/api/health'
+    scrape_interval: 15s
+    scrape_timeout: 5s
+
+  # Production bot health endpoint
+  - job_name: 'rosey-bot-prod'
+    static_configs:
+      - targets:
+          - 'localhost:8000'
+    metrics_path: '/api/health'
+    scrape_interval: 15s
+    scrape_timeout: 5s
+
+  # Deployment dashboard
+  - job_name: 'rosey-bot-dashboard'
+    static_configs:
+      - targets:
+          - 'localhost:5000'
+    metrics_path: '/api/stats'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets:
+          - 'localhost:9090'

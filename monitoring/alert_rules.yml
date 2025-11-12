@@ -1,0 +1,108 @@
+# Prometheus alerting rules for Rosey Bot
+#
+# These rules define when alerts should be triggered
+# based on metrics collected from the bot.
+
+groups:
+  - name: rosey_bot_alerts
+    interval: 30s
+    rules:
+      # Bot is down
+      - alert: RoseyBotDown
+        expr: rosey_bot_up == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: bot
+        annotations:
+          summary: "Rosey Bot is down ({{ $labels.env }})"
+          description: "Bot in {{ $labels.env }} environment has been down for more than 2 minutes."
+
+      # Bot is not connected to CyTube
+      - alert: RoseyBotDisconnected
+        expr: rosey_bot_connected == 0 and rosey_bot_up == 1
+        for: 5m
+        labels:
+          severity: warning
+          component: bot
+        annotations:
+          summary: "Rosey Bot disconnected ({{ $labels.env }})"
+          description: "Bot in {{ $labels.env }} is running but not connected to CyTube for 5+ minutes."
+
+      # High error rate
+      - alert: RoseyBotHighErrorRate
+        expr: rosey_bot_error_rate_percent > 5
+        for: 10m
+        labels:
+          severity: warning
+          component: bot
+        annotations:
+          summary: "High error rate on Rosey Bot ({{ $labels.env }})"
+          description: "Error rate in {{ $labels.env }} is {{ $value }}% (threshold: 5%)."
+
+      # Critical error rate
+      - alert: RoseyBotCriticalErrorRate
+        expr: rosey_bot_error_rate_percent > 10
+        for: 5m
+        labels:
+          severity: critical
+          component: bot
+        annotations:
+          summary: "CRITICAL error rate on Rosey Bot ({{ $labels.env }})"
+          description: "Error rate in {{ $labels.env }} is {{ $value }}% (threshold: 10%)."
+
+      # Bot restarted recently
+      - alert: RoseyBotRestarted
+        expr: rosey_bot_uptime_seconds < 300
+        for: 1m
+        labels:
+          severity: info
+          component: bot
+        annotations:
+          summary: "Rosey Bot restarted ({{ $labels.env }})"
+          description: "Bot in {{ $labels.env }} has uptime of {{ $value }}s (< 5 minutes)."
+
+      # No users in channel (production only)
+      - alert: RoseyBotNoUsers
+        expr: rosey_bot_channel_users{env="prod"} == 0
+        for: 30m
+        labels:
+          severity: info
+          component: bot
+        annotations:
+          summary: "No users in production channel"
+          description: "Production bot has reported 0 users for 30+ minutes."
+
+      # Deployment metrics not updating
+      - alert: RoseyBotMetricsStale
+        expr: (time() - rosey_bot_scrape_timestamp_ms / 1000) > 300
+        for: 5m
+        labels:
+          severity: warning
+          component: monitoring
+        annotations:
+          summary: "Rosey Bot metrics are stale"
+          description: "Metrics haven't been updated in {{ $value }}s (threshold: 300s)."
+
+  - name: deployment_alerts
+    interval: 1m
+    rules:
+      # Deployment failed
+      - alert: DeploymentFailed
+        expr: rate(rosey_bot_deployment_failures_total[5m]) > 0
+        labels:
+          severity: critical
+          component: deployment
+        annotations:
+          summary: "Deployment failed"
+          description: "A deployment has failed in the last 5 minutes."
+
+      # High deployment duration
+      - alert: DeploymentSlow
+        expr: rosey_bot_deployment_duration_seconds > 300
+        labels:
+          severity: warning
+          component: deployment
+        annotations:
+          summary: "Deployment taking too long"
+          description: "Deployment is taking {{ $value }}s (threshold: 300s)."
