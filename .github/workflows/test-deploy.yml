@@ -1,0 +1,93 @@
+name: Deploy to Test
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual deployment'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy pytest pytest-cov
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      
+      - name: Lint
+        run: |
+          ruff check lib/ common/ bots/ web/ --select E,F,W,C90,I,N
+      
+      - name: Test
+        run: |
+          pytest test/ --cov=lib --cov=common --cov-report=term-missing
+          coverage report --fail-under=92
+
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    needs: [quality-gates]
+    environment:
+      name: test
+      url: https://cytu.be/r/test-rosey
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Deploy to test server
+        run: |
+          echo "🚀 Deploying to test environment..."
+          echo "This step would SSH to test server and run deploy.sh"
+          echo "For now, marking as successful simulation"
+          # In real implementation:
+          # ssh test-server 'cd /opt/rosey-bot && ./scripts/deploy.sh test'
+      
+      - name: Wait for startup
+        run: |
+          echo "⏳ Waiting 15 seconds for bot startup..."
+          sleep 15
+      
+      - name: Verify deployment
+        run: |
+          echo "✓ Verification would run here with: python scripts/verify_deployment.py --env test"
+          echo "Requires health endpoint implementation (future work)"
+          # Will be fully integrated when health endpoint is ready
+  
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always()
+    
+    steps:
+      - name: Send notification
+        run: |
+          echo "📢 Sending deployment notification..."
+          echo "Status: ${{ needs.deploy.result }}"
+          echo "Webhook notifications will be implemented in later sortie"

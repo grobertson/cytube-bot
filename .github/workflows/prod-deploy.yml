@@ -1,0 +1,173 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (e.g., v1.0.0)'
+        required: true
+        type: string
+      reason:
+        description: 'Reason for deployment'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  validate:
+    name: Validate Deployment
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+      
+      - name: Verify version format
+        run: |
+          VERSION="${{ inputs.version }}"
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "❌ Invalid version format: $VERSION"
+            echo "Expected format: v1.0.0"
+            exit 1
+          fi
+          echo "✅ Version format valid: $VERSION"
+      
+      - name: Check VERSION file
+        run: |
+          if [ ! -f VERSION ]; then
+            echo "❌ VERSION file not found"
+            exit 1
+          fi
+          FILE_VERSION=$(cat VERSION)
+          INPUT_VERSION="${{ inputs.version }}"
+          INPUT_VERSION="${INPUT_VERSION#v}"  # Remove 'v' prefix
+          
+          if [ "$FILE_VERSION" != "$INPUT_VERSION" ]; then
+            echo "❌ Version mismatch!"
+            echo "  VERSION file: $FILE_VERSION"
+            echo "  Input version: $INPUT_VERSION"
+            exit 1
+          fi
+          echo "✅ VERSION file matches: $FILE_VERSION"
+      
+      - name: Verify tag exists
+        run: |
+          git fetch --tags
+          if ! git rev-parse "${{ inputs.version }}" >/dev/null 2>&1; then
+            echo "❌ Tag ${{ inputs.version }} does not exist"
+            exit 1
+          fi
+          echo "✅ Tag exists: ${{ inputs.version }}"
+
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    needs: [validate]
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy pytest pytest-cov
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      
+      - name: Lint
+        run: |
+          ruff check lib/ common/ bots/ web/ --select E,F,W,C90,I,N
+      
+      - name: Test
+        run: |
+          pytest test/ --cov=lib --cov=common --cov-report=term-missing
+          coverage report --fail-under=92
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [quality-gates]
+    environment:
+      name: production
+      url: https://cytu.be/r/rosey
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Create deployment record
+        run: |
+          echo "📝 Creating deployment record..."
+          echo "Version: ${{ inputs.version }}"
+          echo "Reason: ${{ inputs.reason }}"
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+      
+      - name: Deploy to production server
+        run: |
+          echo "🚀 Deploying ${{ inputs.version }} to production..."
+          echo "This step would SSH to production server and run deploy.sh"
+          echo "For now, marking as successful simulation"
+          # In real implementation:
+          # ssh prod-server 'cd /opt/rosey-bot && ./scripts/deploy.sh prod'
+      
+      - name: Wait for startup
+        run: |
+          echo "⏳ Waiting 30 seconds for bot startup..."
+          sleep 30
+      
+      - name: Verify deployment
+        run: |
+          echo "✓ Production verification would run here"
+          echo "Command: python scripts/verify_deployment.py --env prod"
+          echo "Requires health endpoint implementation (future work)"
+          # Will be fully integrated when health endpoint is ready
+      
+      - name: Record deployment
+        run: |
+          echo "💾 Recording deployment in database..."
+          echo "This would log deployment to dashboard database"
+          # Will be implemented in Sortie 11 (Dashboard)
+
+  rollback-prep:
+    name: Prepare Rollback
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: failure()
+    
+    steps:
+      - name: Notify rollback needed
+        run: |
+          echo "⚠️ DEPLOYMENT FAILED - ROLLBACK NEEDED"
+          echo "Previous deployment will be restored automatically on server"
+          echo "Rollback mechanism implemented in deploy.sh script"
+
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always()
+    
+    steps:
+      - name: Send notification
+        run: |
+          echo "📢 Sending deployment notification..."
+          echo "Version: ${{ inputs.version }}"
+          echo "Status: ${{ needs.deploy.result }}"
+          echo "Webhook notifications will be implemented in later sortie"

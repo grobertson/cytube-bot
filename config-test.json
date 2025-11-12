@@ -1,0 +1,29 @@
+{
+  "environment": "test",
+  "cytube": {
+    "server": "cytu.be",
+    "channel": "test-rosey",
+    "username": "RoseyBot-Test",
+    "password": "${CYTUBEBOT_TEST_PASSWORD}"
+  },
+  "features": {
+    "echo": true,
+    "logging": true,
+    "markov": false
+  },
+  "logging": {
+    "level": "DEBUG",
+    "file": "logs/rosey-test.log",
+    "max_bytes": 10485760,
+    "backup_count": 5
+  },
+  "health": {
+    "port": 8001,
+    "host": "0.0.0.0"
+  },
+  "deployment": {
+    "verify_on_start": true,
+    "startup_delay": 10,
+    "health_check_timeout": 120
+  }
+}

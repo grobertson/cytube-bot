@@ -1,0 +1,88 @@
+# Alertmanager configuration for Rosey Bot
+#
+# Configures how alerts are routed and where notifications are sent.
+#
+# Usage:
+#   alertmanager --config.file=monitoring/alertmanager.yml
+
+global:
+  resolve_timeout: 5m
+
+# Route configuration
+route:
+  group_by: ['alertname', 'env', 'severity']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+  receiver: 'default'
+  
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical'
+      group_wait: 0s
+      repeat_interval: 4h
+    
+    # Warning alerts - standard notification
+    - match:
+        severity: warning
+      receiver: 'warning'
+      repeat_interval: 12h
+    
+    # Info alerts - low priority
+    - match:
+        severity: info
+      receiver: 'info'
+      repeat_interval: 24h
+
+# Notification receivers
+receivers:
+  # Default receiver (placeholder)
+  - name: 'default'
+    webhook_configs:
+      - url: 'http://localhost:5000/api/alerts'
+        send_resolved: true
+
+  # Critical alerts
+  - name: 'critical'
+    webhook_configs:
+      - url: 'http://localhost:5000/api/alerts/critical'
+        send_resolved: true
+    # Uncomment to enable email notifications:
+    # email_configs:
+    #   - to: 'ops@example.com'
+    #     from: 'rosey-bot-alerts@example.com'
+    #     smarthost: 'smtp.example.com:587'
+    #     auth_username: 'alerts@example.com'
+    #     auth_password: 'password'
+    #     headers:
+    #       Subject: 'CRITICAL: {{ .GroupLabels.alertname }}'
+
+  # Warning alerts
+  - name: 'warning'
+    webhook_configs:
+      - url: 'http://localhost:5000/api/alerts/warning'
+        send_resolved: true
+
+  # Info alerts
+  - name: 'info'
+    webhook_configs:
+      - url: 'http://localhost:5000/api/alerts/info'
+        send_resolved: true
+
+# Inhibition rules
+inhibit_rules:
+  # If bot is down, don't alert about disconnection
+  - source_match:
+      alertname: 'RoseyBotDown'
+    target_match:
+      alertname: 'RoseyBotDisconnected'
+    equal: ['env']
+  
+  # If there's a critical error rate, don't also alert about warning level
+  - source_match:
+      alertname: 'RoseyBotCriticalErrorRate'
+    target_match:
+      alertname: 'RoseyBotHighErrorRate'
+    equal: ['env']
