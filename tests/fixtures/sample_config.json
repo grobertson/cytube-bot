@@ -1,0 +1,9 @@
+{
+  "channel": "test_channel",
+  "username": "TestBot",
+  "password": "test_password",
+  "server": "wss://cytu.be:9443/socket.io/",
+  "database": {
+    "enabled": false
+  }
+}
