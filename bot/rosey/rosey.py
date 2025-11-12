@@ -27,8 +27,8 @@ from lib import Bot
 
 # LLM imports (optional)
 try:
-    from bot.rosey.llm import LLMClient
-    from bot.rosey.llm.triggers import TriggerConfig, TriggerManager
+    from lib.llm import LLMClient
+    from lib.llm.triggers import TriggerConfig, TriggerManager
     HAS_LLM = True
 except ImportError:
     HAS_LLM = False

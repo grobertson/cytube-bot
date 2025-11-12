@@ -12,7 +12,7 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from bot.rosey.llm import OpenAIProvider, LLMClient
+from lib.llm import OpenAIProvider, LLMClient
 
 
 def test_openai_provider_init():
@@ -75,7 +75,7 @@ def test_all_providers():
     """Test that all three providers can coexist."""
     print("\nTesting all three providers...")
     
-    from bot.rosey.llm import OllamaProvider, OpenRouterProvider
+    from lib.llm import OllamaProvider, OpenRouterProvider
     
     # OpenAI
     openai_config = {'api_key': 'sk-test', 'model': 'gpt-4'}
