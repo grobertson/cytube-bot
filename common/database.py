@@ -520,7 +520,10 @@ class BotDatabase:
             limit: Maximum number of messages to retrieve (default 20)
 
         Returns:
-            list: List of dicts with timestamp, username, message
+            list: List of dicts with timestamp, username, message in reverse
+                chronological order (newest first). Note: Messages with identical
+                timestamps may appear in reverse insertion order due to SQLite's
+                tie-breaking behavior.
         """
         cursor = self.conn.cursor()
         cursor.execute('''
@@ -530,7 +533,9 @@ class BotDatabase:
             LIMIT ?
         ''', (limit,))
 
-        # Return in chronological order (oldest first)
+        # Query returns DESC (newest first), reverse() flips to newest first
+        # when considering the LIMIT. Messages with same timestamp maintain
+        # reverse insertion order due to SQLite rowid ordering.
         messages = [dict(row) for row in cursor.fetchall()]
         messages.reverse()
         return messages
@@ -543,7 +548,8 @@ class BotDatabase:
             limit: Maximum number of messages to return (safety cap).
 
         Returns:
-            list of dicts with timestamp, username, message (oldest first)
+            list of dicts with timestamp, username, message in chronological
+                order (oldest first, ascending by timestamp).
         """
         cursor = self.conn.cursor()
         since = int(time.time()) - (minutes * 60)
