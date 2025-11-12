@@ -24,25 +24,27 @@ All 11 sorties and 3 critical dependencies have been fully specified and are rea
 
 ### Phase 2: Critical Dependencies (Agent Tasks)
 
-**Critical: Health Endpoint** ⏱️ 3-4 hours
+**Sortie 2A: Fix WebSocket Timeout** ⏱️ 30 minutes
+- Fix config timeout: `0.1` → `3.0` seconds
+- Simple config change, huge stability improvement
+- Blocks production deployment
+- **Spec:** `SPEC-Sortie-2A-Timeout-Fix.md`
+
+**Sortie 2B: Implement Health Endpoint** ⏱️ 3-4 hours
 - Implement `/api/health` JSON endpoint
 - Implement `/api/metrics` Prometheus endpoint
 - Flask server on separate thread
 - Returns 8 status fields
-- **Spec:** `SPEC-Critical-Health-Endpoint.md`
+- **Spec:** `SPEC-Sortie-2B-Health-Endpoint.md`
 
-**Critical: SSH Deployment** ⏱️ 2-3 hours
+**Sortie 2C: Configure SSH Deployment** ⏱️ 2-3 hours
 - Update test deployment workflow with real SSH/rsync
 - Update production workflow with backup + deployment
 - Replace echo placeholders with actual file transfer
 - Add health endpoint verification
-- **Spec:** `SPEC-Critical-SSH-Deployment.md`
+- **Spec:** `SPEC-Sortie-2C-SSH-Deployment.md`
 
-**Critical: Timeout Fix** ⏱️ 30 minutes
-- Fix config timeout: `0.1` → `3.0` seconds
-- Simple config change, huge stability improvement
-- Blocks production deployment
-- **Spec:** `SPEC-Critical-Timeout-Fix.md`
+### Phase 3: First Deployments (Both)
 
 **Sortie 3: systemd Services** ⏱️ 1-2 hours
 - Update `rosey-bot.service` (paths, user, entry point)
@@ -51,9 +53,24 @@ All 11 sorties and 3 critical dependencies have been fully specified and are rea
 - Create `alertmanager.service`
 - **Spec:** `SPEC-Sortie-3-systemd-Services.md`
 
-### Phase 3: First Deployments (Both)
-
 **Sortie 4: First Test Deployment** ⏱️ 2-3 hours
+- Execute first automated deployment to test server
+- Install systemd services
+- Verify health endpoint
+- Validate bot stability
+- **Spec:** `SPEC-Sortie-4-First-Test-Deployment.md`
+
+**Sortie 5: First Production Deployment** ⏱️ 2.5-3 hours + 24hr monitoring
+- Create production environment (approval required)
+- Tag deployment version
+- Manual approval process
+- Deploy to production
+- Verify operation
+- **Spec:** `SPEC-Sortie-5-First-Production-Deployment.md`
+
+### Phase 4: Monitoring & Operations (Both)
+
+**Sortie 6: Deploy Monitoring Stack** ⏱️ 3 hours
 - Execute first automated deployment to test server
 - Install systemd services
 - Verify health endpoint
@@ -126,8 +143,8 @@ All 11 sorties and 3 critical dependencies have been fully specified and are rea
 
 1. **User: Sortie 1** (Server Provisioning) - Must be first
 2. **User: Sortie 2** (GitHub Secrets) - Depends on Sortie 1
-3. **Agent: Critical Dependencies** (Health, SSH, Timeout) - Can parallelize
-4. **Agent: Sortie 3** (systemd Services) - After critical deps
+3. **Agent: Sorties 2A, 2B, 2C** (Timeout, Health, SSH) - Can parallelize
+4. **Agent: Sortie 3** (systemd Services) - After Sorties 2A-2C
 5. **Both: Sortie 4** (Test Deployment) - After 1-3 complete
 6. **Both: Sortie 5** (Production Deployment) - After Sortie 4 stable
 7. **Both: Sorties 6-8** (Monitoring) - After deployments working
@@ -138,10 +155,10 @@ All 11 sorties and 3 critical dependencies have been fully specified and are rea
 ### Parallelization Opportunities
 
 **After Sortie 2 complete, agent can work on:**
-- Health endpoint implementation
-- SSH deployment configuration
-- Timeout fix
-- systemd services
+- Sortie 2A: Timeout fix
+- Sortie 2B: Health endpoint implementation
+- Sortie 2C: SSH deployment configuration
+- Sortie 3: systemd services
 
 **All in parallel while user waits.**
 
@@ -166,8 +183,8 @@ All 11 sorties and 3 critical dependencies have been fully specified and are rea
 - Monitoring/validation: 6-8 hours
 
 **Agent tasks:** ~20-25 hours
-- Critical dependencies: 6-7 hours
-- systemd services: 2 hours
+- Sorties 2A, 2B, 2C: 6-7 hours
+- Sortie 3 (systemd): 2 hours
 - Monitoring stack: 6 hours
 - Dashboard: 3 hours
 - Documentation: 3 hours
@@ -194,14 +211,22 @@ Sprint 6 is complete when:
 
 ### Specification Documents (This Sprint)
 
-1. `PRD-Make-It-Real.md` - Product requirements (11 sorties)
+1. `PRD-Make-It-Real.md` - Product requirements (11 sorties + 3 critical = 14 total)
 2. `SPEC-Sortie-1-Server-Provisioning.md` - User guide (479 lines)
 3. `SPEC-Sortie-2-GitHub-Secrets.md` - User guide (339 lines)
-4. `SPEC-Sortie-3-systemd-Services.md` - Service files guide (618 lines)
-5. `SPEC-Critical-Health-Endpoint.md` - Health API implementation (449 lines)
-6. `SPEC-Critical-SSH-Deployment.md` - SSH deployment config (511 lines)
-7. `SPEC-Critical-Timeout-Fix.md` - Timeout bug fix (316 lines)
+4. `SPEC-Sortie-2A-Timeout-Fix.md` - Timeout bug fix (316 lines)
+5. `SPEC-Sortie-2B-Health-Endpoint.md` - Health API implementation (449 lines)
+6. `SPEC-Sortie-2C-SSH-Deployment.md` - SSH deployment config (511 lines)
+7. `SPEC-Sortie-3-systemd-Services.md` - Service files guide (618 lines)
+7. `SPEC-Sortie-3-systemd-Services.md` - Service files guide (618 lines)
 8. `SPEC-Sortie-4-First-Test-Deployment.md` - Test deployment guide (484 lines)
+9. `SPEC-Sortie-5-First-Production-Deployment.md` - Prod deployment guide (502 lines)
+10. `SPEC-Sortie-6-Deploy-Monitoring-Stack.md` - Monitoring setup (546 lines)
+11. `SPEC-Sortie-7-Deploy-Dashboard.md` - Dashboard implementation (703 lines)
+12. `SPEC-Sortie-8-Test-Alert-Notifications.md` - Alert testing guide (455 lines)
+13. `SPEC-Sortie-9-Test-Rollback-Procedure.md` - Rollback testing (521 lines)
+14. `SPEC-Sortie-10-Validate-Production-Traffic.md` - Validation plan (464 lines)
+15. `SPEC-Sortie-11-Update-Documentation.md` - Documentation guide (1087 lines)
 9. `SPEC-Sortie-5-First-Production-Deployment.md` - Prod deployment guide (502 lines)
 10. `SPEC-Sortie-6-Deploy-Monitoring-Stack.md` - Monitoring setup (546 lines)
 11. `SPEC-Sortie-7-Deploy-Dashboard.md` - Dashboard implementation (703 lines)
@@ -247,7 +272,7 @@ Will be created as part of Sortie 11:
 | Bad deployment breaks production | Test on test server first | Sortie 4 |
 | Can't recover from bad deploy | Test rollback procedure | Sortie 9 |
 | Don't notice when bot breaks | Health monitoring + alerts | Sorties 6-8 |
-| Deployment requires manual work | Automated CI/CD | Critical: SSH |
+| Deployment requires manual work | Automated CI/CD | Sortie 2C |
 | Configuration mistakes | Validation checklists | All specs |
 | Lost knowledge | Comprehensive documentation | Sortie 11 |
 
@@ -263,8 +288,8 @@ Will be created as part of Sortie 11:
 
 1. **User:** Execute Sortie 1 (provision servers)
 2. **User:** Execute Sortie 2 (configure GitHub Secrets)
-3. **Agent:** Implement critical dependencies (health, SSH, timeout)
-4. **Agent:** Create systemd services
+3. **Agent:** Implement Sorties 2A, 2B, 2C (timeout, health, SSH)
+4. **Agent:** Create Sortie 3 (systemd services)
 5. **Both:** Deploy to test server
 6. ... continue through all sorties
 

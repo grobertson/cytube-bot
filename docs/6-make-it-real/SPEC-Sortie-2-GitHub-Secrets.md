@@ -336,8 +336,8 @@ I can help with this when it's time!
 
 After validation:
 1. Confirm all secrets are set
-2. Move to **Sortie 3: Create systemd Services** (I'll handle this one!)
-3. Then critical dependencies (health endpoint, SSH deployment, timeout fix)
+2. Move to **Sorties 2A, 2B, 2C** (critical dependencies - I'll handle these!)
+3. Then **Sortie 3: Create systemd Services**
 
 ## Time Estimate
 

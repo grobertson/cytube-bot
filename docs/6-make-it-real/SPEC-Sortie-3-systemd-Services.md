@@ -592,7 +592,7 @@ Sortie 3 is complete when:
 
 After this sortie:
 
-1. Move to **Critical Dependencies** (health endpoint, SSH, timeout)
+1. Verify **Sorties 2A, 2B, 2C** are complete (timeout, health endpoint, SSH deployment)
 2. Those must be complete before Sortie 4 (first deployment)
 3. In Sortie 4, we'll install and test these services on test server
 4. In Sortie 5, we'll install on production server

@@ -7,8 +7,10 @@
 **Depends On**: 
 - Sortie 1 (Test server provisioned)
 - Sortie 2 (GitHub Secrets configured)
+- Sortie 2A (WebSocket timeout fixed)
+- Sortie 2B (Health endpoint implemented)
+- Sortie 2C (SSH deployment configured)
 - Sortie 3 (systemd services created)
-- Critical: Health endpoint, SSH deployment, timeout fix
 
 ## Overview
 

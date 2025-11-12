@@ -72,7 +72,7 @@ Must be resolved during Sprint 6:
 
 ## Sprint 6 Sorties
 
-### Phase 1: Foundation (Sorties 1-3)
+### Phase 1: Foundation (Sorties 1-2)
 Setup infrastructure needed for first deployment.
 
 #### Sortie 1: Provision and Configure Servers (#19)
@@ -111,26 +111,25 @@ Setup infrastructure needed for first deployment.
 - Secrets match workflow requirements
 - Security best practices followed
 
-#### Sortie 3: Create systemd Services (#21)
-**Goal**: Manage bot and services as system services  
+### Phase 2: Critical Dependencies (Sorties 2A-2C)
+Execute in parallel with Sorties 1-2 to unblock first deployment.
+
+#### Sortie 2A: Fix WebSocket Timeout (#14)
+**Goal**: Fix critical bug preventing bot connection  
+**Priority**: CRITICAL - Bot fails 100% without this fix  
 **Tasks**:
-- Review/update `systemd/cytube-bot.service`
-- Review/update `systemd/cytube-web.service`
-- Create `systemd/prometheus.service`
-- Create `systemd/alertmanager.service`
-- Update paths to match deployment structure
-- Document service management
+- Update `config-test.json`: timeout 0.1 → 3.0
+- Update `config-prod.json`: timeout 0.1 → 3.0
+- Update documentation with rationale
+- Test connection with new timeout
 
 **Acceptance**:
-- All 4 service files created/updated
-- Services use correct paths and users
-- Services configured for auto-restart
-- Services start on boot
-- Service management documented
+- Bot connects successfully
+- Connection stable over time
+- Configuration documented
+- No regression in performance
 
-### Phase 2: Critical Dependencies (Implemented in parallel with Phase 1)
-
-#### Health Endpoint Implementation (#16)
+#### Sortie 2B: Implement Health Endpoint (#16)
 **Goal**: Implement `/api/health` endpoint required by all monitoring  
 **Priority**: CRITICAL - Blocks verification, monitoring, dashboard  
 **Tasks**:
@@ -155,7 +154,7 @@ Setup infrastructure needed for first deployment.
 - Endpoint works when bot connected/disconnected
 - No performance impact on bot
 
-#### SSH Deployment Configuration (#17)
+#### Sortie 2C: Configure SSH Deployment (#17)
 **Goal**: Replace stubbed echo commands with actual SSH deployment  
 **Priority**: CRITICAL - Required for automated deployments  
 **Tasks**:
@@ -173,22 +172,24 @@ Setup infrastructure needed for first deployment.
 - Deployments complete successfully
 - SSH operations properly secured
 
-#### WebSocket Timeout Fix (#14)
-**Goal**: Fix critical bug preventing bot connection  
-**Priority**: CRITICAL - Bot fails 100% without this fix  
+### Phase 3: First Deployments (Sorties 3-5)
+
+#### Sortie 3: Create systemd Services (#21)
+**Goal**: Manage bot and services as system services  
 **Tasks**:
-- Update `config-test.json`: timeout 0.1 → 3.0
-- Update `config-prod.json`: timeout 0.1 → 3.0
-- Update documentation with rationale
-- Test connection with new timeout
+- Review/update `systemd/cytube-bot.service`
+- Review/update `systemd/cytube-web.service`
+- Create `systemd/prometheus.service`
+- Create `systemd/alertmanager.service`
+- Update paths to match deployment structure
+- Document service management
 
 **Acceptance**:
-- Bot connects successfully
-- Connection stable over time
-- Configuration documented
-- No regression in performance
-
-### Phase 3: First Deployments (Sorties 4-5)
+- All 4 service files created/updated
+- Services use correct paths and users
+- Services configured for auto-restart
+- Services start on boot
+- Service management documented
 
 #### Sortie 4: First Test Deployment (#22)
 **Goal**: Execute first end-to-end deployment to test server  
@@ -550,10 +551,11 @@ Based on Sprint 5 experience (3:1 planning ratio):
 
 ### To Begin Sprint 6
 1. Start with Sortie 1 (server provisioning)
-2. Parallelize health endpoint (#16) with Phase 1
-3. Fix WebSocket timeout (#14) early
-4. Proceed through sorties sequentially
-5. Update documentation continuously
+2. Execute Sortie 2 (GitHub Secrets configuration)
+3. Parallelize Sorties 2A, 2B, 2C (critical dependencies) - can start after Sortie 2
+4. Execute Sortie 3 (systemd services)
+5. Proceed through remaining sorties sequentially
+6. Update documentation continuously
 
 ### Dependencies to Resolve
 - [ ] Production server access confirmed
